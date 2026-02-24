@@ -1232,3 +1232,441 @@ body {
   font-size: 12px;
   text-align: center;
 }
+
+/* ── Sprint 7: Workflow List ─────────────────────────────── */
+
+.workflow-list {
+  padding: 16px;
+}
+
+.workflow-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workflow-search-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.workflow-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.workflow-template-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workflow-tag-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tag-chip.active {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+.tag-chip.small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.workflow-error {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 13px;
+}
+
+.workflow-loading,
+.workflow-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.workflow-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.15s;
+}
+
+.workflow-card:hover {
+  border-color: var(--border-active);
+}
+
+.workflow-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.workflow-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.workflow-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.workflow-badge.template {
+  background: rgba(56, 139, 253, 0.15);
+  color: var(--accent-blue);
+}
+
+.workflow-badge.category {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.workflow-card-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.workflow-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.workflow-card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.workflow-card-stats {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.workflow-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Sprint 7: Execute Dialog ────────────────────────────── */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dialog-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dialog-header h2 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.dialog-description {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0 0 16px 0;
+}
+
+.dialog-params h3 {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.param-field {
+  margin-bottom: 12px;
+}
+
+.param-field label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.param-desc {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+.param-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.dialog-no-params {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.dialog-error {
+  padding: 8px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── Sprint 7: Pause/Resume Controls ────────────────────── */
+
+.pause-resume-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pause-status {
+  color: var(--accent-yellow);
+  font-size: 12px;
+}
+
+.pause-error {
+  color: var(--accent-red);
+  font-size: 12px;
+}
+
+.btn-warning {
+  background: var(--accent-yellow);
+  color: #000;
+  border: none;
+}
+
+/* ── Sprint 7: Export ────────────────────────────────────── */
+
+.workflow-export {
+  padding: 16px;
+}
+
+.workflow-export h3 {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.export-format-selector {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.export-format-selector label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.export-error {
+  padding: 8px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.export-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── Sprint 7: Recovery Suggestions ─────────────────────── */
+
+.recovery-suggestions {
+  padding: 12px;
+}
+
+.suggestions-loading {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 16px;
+}
+
+.suggestions-error {
+  padding: 8px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 13px;
+}
+
+.suggestions-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestion-diagnosis {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.suggestion-auto-recover {
+  padding: 8px 12px;
+  background: rgba(63, 185, 80, 0.1);
+  border: 1px solid var(--accent-green);
+  border-radius: 6px;
+  color: var(--accent-green);
+  font-size: 13px;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-item {
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+}
+
+.suggestion-item.confidence-high {
+  border-left: 3px solid var(--accent-green);
+}
+
+.suggestion-item.confidence-medium {
+  border-left: 3px solid var(--accent-yellow);
+}
+
+.suggestion-item.confidence-low {
+  border-left: 3px solid var(--accent-red);
+}
+
+.suggestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.suggestion-action {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.suggestion-confidence {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.suggestion-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.suggestion-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+}

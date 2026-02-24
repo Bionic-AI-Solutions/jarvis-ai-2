@@ -54,6 +54,9 @@ class ErrorCode(str, Enum):
     WORKFLOW_INVALID_STEPS = "WF_006"
     WORKFLOW_SAVE_FAILED = "WF_007"
     WORKFLOW_DUPLICATE_NAME = "WF_008"
+    WORKFLOW_SAVE_INCOMPLETE = "WF_009"
+    WORKFLOW_NOT_TEMPLATE = "WF_010"
+    WORKFLOW_PAUSED = "WF_011"
     EXECUTION_NOT_FOUND = "EX_001"
     EXECUTION_ALREADY_COMPLETE = "EX_002"
     SCREENSHOT_CAPTURE_FAILED = "EX_003"
@@ -179,6 +182,21 @@ ERROR_CATALOG: Dict[str, ErrorDefinition] = {
     ErrorCode.WORKFLOW_DUPLICATE_NAME: ErrorDefinition(
         code="WF_008", http_status=409,
         message="A workflow with this name already exists",
+        ux_action="notify", retry_allowed=False, category="workflow",
+    ),
+    ErrorCode.WORKFLOW_SAVE_INCOMPLETE: ErrorDefinition(
+        code="WF_009", http_status=400,
+        message="Cannot save workflow from an incomplete execution",
+        ux_action="notify", retry_allowed=False, category="workflow",
+    ),
+    ErrorCode.WORKFLOW_NOT_TEMPLATE: ErrorDefinition(
+        code="WF_010", http_status=400,
+        message="The specified workflow is not a template and cannot be cloned",
+        ux_action="notify", retry_allowed=False, category="workflow",
+    ),
+    ErrorCode.WORKFLOW_PAUSED: ErrorDefinition(
+        code="WF_011", http_status=409,
+        message="Workflow execution is already paused",
         ux_action="notify", retry_allowed=False, category="workflow",
     ),
     ErrorCode.EXECUTION_NOT_FOUND: ErrorDefinition(

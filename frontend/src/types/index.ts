@@ -107,3 +107,85 @@ export interface RecoveryNotification {
   step_index: number;
   options?: string[];
 }
+
+// ── Sprint 7: Workflow Execution Types ──────────────────────
+
+/** Workflow template/item returned from API */
+export interface WorkflowItem {
+  id: string;
+  name: string;
+  description: string | null;
+  steps_json: string;
+  is_active: boolean;
+  tags: string | null;
+  success_rate: number;
+  execution_count: number;
+  is_template: boolean;
+  template_category: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Workflow parameter schema */
+export interface WorkflowParameter {
+  name: string;
+  type: string;
+  description: string;
+  default?: string;
+  required?: boolean;
+}
+
+/** Search request */
+export interface WorkflowSearchRequest {
+  query?: string;
+  tags?: string[];
+  templates_only?: boolean;
+}
+
+/** Clone request */
+export interface WorkflowCloneRequest {
+  new_name: string;
+  description?: string;
+  tags?: string[];
+}
+
+/** Execute request */
+export interface WorkflowExecuteRequest {
+  parameter_values?: Record<string, string>;
+  session_id?: string;
+}
+
+/** Execute response */
+export interface WorkflowExecuteResponse {
+  execution_id: string;
+  workflow_id: string;
+  status: string;
+  total_steps: number;
+}
+
+/** Export format */
+export type WorkflowExportFormat = 'json' | 'csv';
+
+/** Error context snapshot summary */
+export interface ContextSnapshotSummary {
+  id: string;
+  step_index: number;
+  timestamp: string | null;
+}
+
+/** Recovery suggestion */
+export interface RecoverySuggestionItem {
+  action: string;
+  description: string;
+  confidence: number;
+}
+
+/** AI recovery result */
+export interface RecoverySuggestionResult {
+  diagnosis: string;
+  suggestions: RecoverySuggestionItem[];
+  can_auto_recover: boolean;
+  auto_recovery_action: string | null;
+  generated_at: string;
+  model_used: string;
+}

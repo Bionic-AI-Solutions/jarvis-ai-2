@@ -185,3 +185,26 @@ class OllamaService:
                 return resp.status_code == 200
         except Exception:
             return False
+
+
+# Module-level lazy singleton
+_ollama_service: OllamaService | None = None
+
+
+def get_ollama_service() -> OllamaService:
+    """Return a module-level OllamaService singleton (lazy-init)."""
+    global _ollama_service
+    if _ollama_service is None:
+        _ollama_service = OllamaService()
+    return _ollama_service
+
+
+class _OllamaProxy:
+    """Lazy proxy so `ollama_service` can be used at module level without
+    triggering Settings resolution at import time."""
+
+    def __getattr__(self, name: str):
+        return getattr(get_ollama_service(), name)
+
+
+ollama_service: OllamaService = _OllamaProxy()  # type: ignore[assignment]

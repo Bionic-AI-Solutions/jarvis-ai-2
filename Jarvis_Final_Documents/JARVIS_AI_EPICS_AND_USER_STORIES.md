@@ -2186,3 +2186,46 @@ CRITICAL PATH:
 
 ---
 
+### BUG-009 — Sprint 7: save_after_execution logs empty (identity map stale cache)
+- **Sprint:** 7 (Workflow Execution)
+- **Story:** 4.1 (Save Workflow After Execution)
+- **Severity:** Major
+- **Description:** `save_after_execution` returned a workflow with empty `steps_json` (`[]`) despite execution having 2 logs. Using `selectinload(WorkflowExecution.logs)` did not re-fetch logs when the execution was already in the SQLAlchemy identity map from a prior query during the same session.
+- **Root Cause:** `expire_on_commit=False` causes the identity map to retain stale relationship data. The execution was already cached without `logs` loaded, so `selectinload` didn't overwrite it.
+- **Fix:** Changed to directly query `ExecutionLog` records via a separate `select(ExecutionLog).where(...)` instead of relying on the relationship + eager loading.
+- **Status:** ✅ RESOLVED
+
+---
+
+### BUG-010 — Sprint 7: seed_templates returns list instead of int
+- **Sprint:** 7 (Workflow Execution)
+- **Story:** 4.5 (Workflow Templates)
+- **Severity:** Minor
+- **Description:** `seed_templates()` returned a `list[Workflow]` but the route expected an `int` count for the JSON response `{"seeded": count}`.
+- **Root Cause:** Implementation returned the list of created Workflow objects rather than the count.
+- **Fix:** Changed return type to `int` (length of created templates).
+- **Status:** ✅ RESOLVED
+
+---
+
+### BUG-011 — Sprint 7: CSV export returned dict instead of CSV string
+- **Sprint:** 7 (Workflow Execution)
+- **Story:** 4.7 (Export Workflows)
+- **Severity:** Major
+- **Description:** `export_workflow(format="csv")` returned a nested dict with `csv_rows` key instead of an actual CSV string. The test and schema expected a CSV string in the `workflow` field.
+- **Root Cause:** Initial implementation used a dict with list of row dicts instead of using `csv.DictWriter` + `io.StringIO` to produce a real CSV string.
+- **Fix:** Rewrote CSV export to use `csv.DictWriter` with `io.StringIO`, producing a proper CSV string. Also added `exported_at` timestamp field and changed schema from `datetime` to `str`.
+- **Status:** ✅ RESOLVED
+
+---
+
+### BUG-012 — Sprint 7: log.detail JSON parse failure in save_after_execution
+- **Sprint:** 7 (Workflow Execution)
+- **Story:** 4.1 (Save Workflow After Execution)
+- **Severity:** Major
+- **Description:** `save_after_execution` raised `JSONDecodeError` when `log.detail` contained plain text (e.g., "Step 0 completed OK") instead of valid JSON.
+- **Root Cause:** Code used `json.loads(log.detail)` without error handling. `ExecutionLog.detail` is a free-form text field that may contain either JSON or plain strings.
+- **Fix:** Wrapped `json.loads(log.detail)` in a try/except `JSONDecodeError`, falling back to empty dict `{}` when detail is not valid JSON.
+- **Status:** ✅ RESOLVED
+
+---

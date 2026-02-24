@@ -72,6 +72,7 @@ class WorkflowOrchestrator:
         self.base_backoff = base_backoff_seconds
         self.recovery = recovery or recovery_engine
         self._running_executions: Dict[str, bool] = {}
+        self._paused_executions: Dict[str, asyncio.Event] = {}
         self._user_confirm_futures: Dict[str, asyncio.Future] = {}
 
     async def execute_workflow(
@@ -107,6 +108,34 @@ class WorkflowOrchestrator:
             # Check if cancelled
             if not self._running_executions.get(execution_id, False):
                 logger.info("workflow_cancelled_mid_execution", execution_id=execution_id, step=idx)
+                return {
+                    "status": "cancelled",
+                    "completed_steps": completed,
+                    "total_steps": total,
+                    "failed_steps": failed_steps,
+                }
+
+            # Check if paused — wait until resumed or auto-resume after 30 min
+            pause_event = self._paused_executions.get(execution_id)
+            if pause_event is not None and not pause_event.is_set():
+                await ws_manager.broadcast_to_execution(execution_id, {
+                    "type": "execution_paused",
+                    "execution_id": execution_id,
+                    "step_index": idx,
+                    "completed_steps": completed,
+                })
+                try:
+                    await asyncio.wait_for(pause_event.wait(), timeout=1800)  # 30 min auto-resume
+                except asyncio.TimeoutError:
+                    logger.warning("pause_auto_resumed", execution_id=execution_id, timeout_seconds=1800)
+                await ws_manager.broadcast_to_execution(execution_id, {
+                    "type": "execution_resumed",
+                    "execution_id": execution_id,
+                    "step_index": idx,
+                })
+
+            # Re-check cancellation after resume
+            if not self._running_executions.get(execution_id, False):
                 return {
                     "status": "cancelled",
                     "completed_steps": completed,
@@ -167,6 +196,7 @@ class WorkflowOrchestrator:
         # Determine final status
         final_status = "completed" if completed == total else "failed"
         self._running_executions.pop(execution_id, None)
+        self._paused_executions.pop(execution_id, None)
 
         # Notify: workflow_complete
         await ws_manager.broadcast_to_execution(execution_id, {
@@ -187,7 +217,34 @@ class WorkflowOrchestrator:
     async def cancel(self, execution_id: str) -> None:
         """Signal a running execution to stop."""
         self._running_executions[execution_id] = False
+        # If paused, wake it so it can see the cancel flag
+        pause_event = self._paused_executions.pop(execution_id, None)
+        if pause_event is not None:
+            pause_event.set()
         logger.info("workflow_cancel_requested", execution_id=execution_id)
+
+    async def pause(self, execution_id: str) -> None:
+        """Pause execution at the next step boundary."""
+        if execution_id not in self._running_executions:
+            raise WorkflowError(ErrorCode.WORKFLOW_NOT_FOUND, detail="Execution not running")
+        if execution_id in self._paused_executions and not self._paused_executions[execution_id].is_set():
+            raise WorkflowError(ErrorCode.WORKFLOW_PAUSED, detail="Already paused")
+        evt = asyncio.Event()
+        self._paused_executions[execution_id] = evt
+        logger.info("workflow_pause_requested", execution_id=execution_id)
+
+    async def resume(self, execution_id: str) -> None:
+        """Resume a paused execution."""
+        evt = self._paused_executions.pop(execution_id, None)
+        if evt is None:
+            raise WorkflowError(ErrorCode.WORKFLOW_NOT_FOUND, detail="Execution not paused")
+        evt.set()
+        logger.info("workflow_resumed", execution_id=execution_id)
+
+    def is_paused(self, execution_id: str) -> bool:
+        """Check if an execution is currently paused."""
+        evt = self._paused_executions.get(execution_id)
+        return evt is not None and not evt.is_set()
 
     async def resolve_user_confirmation(
         self, execution_id: str, step_index: int, choice: str,
