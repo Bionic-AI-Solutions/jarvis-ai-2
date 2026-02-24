@@ -1,0 +1,1 @@
+This file was produced as part of step 11 processing. It serves as a placeholder and reminder that subagent-generated documents are saved in the workspace. The contents can be replaced with actual step 11 output when available.

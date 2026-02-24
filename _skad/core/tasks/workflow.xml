@@ -1,0 +1,445 @@
+<task id="_skad/core/tasks/workflow.xml" name="Execute Workflow" internal="true">
+  <objective>Execute given workflow by loading its configuration, following instructions, and producing output</objective>
+
+  <llm critical="true">
+    <mandate>Always read COMPLETE files - NEVER use offset/limit when reading any workflow related files</mandate>
+    <mandate>Instructions are MANDATORY - either as file path, steps or embedded list in YAML, XML or markdown</mandate>
+    <mandate>Execute ALL steps in instructions IN EXACT ORDER</mandate>
+    <mandate>Save to template output file after EVERY "template-output" tag</mandate>
+    <mandate>NEVER skip a step - YOU are responsible for every steps execution without fail or excuse</mandate>
+  </llm>
+
+  <WORKFLOW-RULES critical="true">
+    <rule n="1">Steps execute in exact numerical order (1, 2, 3...)</rule>
+    <rule n="2">Optional steps: Ask user unless #yolo mode active</rule>
+    <rule n="3">Template-output tags: Save content, discuss with the user the section completed, and NEVER proceed until the users indicates
+      to proceed (unless YOLO mode has been activated)</rule>
+  </WORKFLOW-RULES>
+
+  <flow>
+    <step n="1" title="Load and Initialize Workflow">
+      <substep n="1a" title="Load Configuration and Resolve Variables">
+        <action>Read workflow.yaml from provided path</action>
+        <mandate>Load config_source (REQUIRED for all modules)</mandate>
+        <phase n="1">Load external config from config_source path</phase>
+        <phase n="2">Resolve all {config_source}: references with values from config</phase>
+        <phase n="3">Resolve system variables (date:system-generated) and paths ({project-root}, {installed_path})</phase>
+        <phase n="4">Ask user for input of any variables that are still unknown</phase>
+      </substep>
+
+      <substep n="1b" title="Load Required Components">
+        <mandate>Instructions: Read COMPLETE file from path OR embedded list (REQUIRED)</mandate>
+        <check>If template path → Read COMPLETE template file</check>
+        <check>If validation path → Note path for later loading when needed</check>
+        <check>If template: false → Mark as action-workflow (else template-workflow)</check>
+        <note>Data files (csv, json) → Store paths only, load on-demand when instructions reference them</note>
+      </substep>
+
+      <substep n="1c" title="Initialize Output" if="template-workflow">
+        <action>Resolve default_output_file path with all variables and {{date}}</action>
+        <action>Create output directory if doesn't exist</action>
+        <action>If template-workflow → Write template to output file with placeholders</action>
+        <action>If action-workflow → Skip file creation</action>
+      </substep>
+    </step>
+
+    <step n="2" title="Process Each Instruction Step in Order">
+      <iterate>For each step in instructions:</iterate>
+
+      <substep n="2a" title="Handle Step Attributes">
+        <check>If optional="true" and NOT #yolo → Ask user to include</check>
+        <check>If if="condition" → Evaluate condition</check>
+        <check>If for-each="item" → Repeat step for each item</check>
+        <check>If repeat="n" → Repeat step n times</check>
+      </substep>
+
+      <substep n="2b" title="Execute Step Content">
+        <action>Process step instructions (markdown or XML tags)</action>
+        <action>Replace {{variables}} with values (ask user if unknown)</action>
+        <execute-tags>
+          <tag>action xml tag → Perform the action</tag>
+          <tag>check if="condition" xml tag → Conditional block wrapping actions (requires closing &lt;/check&gt;)</tag>
+          <tag>ask xml tag → Prompt user and WAIT for response</tag>
+          <tag>invoke-workflow xml tag → Execute another workflow with given inputs and the workflow.xml runner</tag>
+          <tag>invoke-task xml tag → Execute specified task</tag>
+          <tag>invoke-protocol name="protocol_name" xml tag → Execute reusable protocol from protocols section</tag>
+          <tag>invoke-subagent xml tag → Spawn Claude subagent for autonomous task execution</tag>
+          <tag>invoke-parallel xml tag → Spawn multiple Claude subagents in parallel</tag>
+          <tag>sync-point xml tag → Wait for background subagents to complete</tag>
+          <tag>goto step="x" → Jump to specified step</tag>
+        </execute-tags>
+      </substep>
+
+      <substep n="2c" title="Handle template-output Tags">
+        <if tag="template-output">
+          <mandate>Generate content for this section</mandate>
+          <mandate>Save to file (Write first time, Edit subsequent)</mandate>
+          <action>Display generated content</action>
+          <ask> [a] Advanced Elicitation, [c] Continue, [p] Party-Mode, [y] YOLO the rest of this document only. WAIT for response. <if
+              response="a">
+              <action>Start the advanced elicitation workflow {project-root}/_skad/core/workflows/advanced-elicitation/workflow.xml</action>
+            </if>
+            <if
+              response="c">
+              <action>Continue to next step</action>
+            </if>
+            <if response="p">
+              <action>Start the party-mode workflow {project-root}/_skad/core/workflows/party-mode/workflow.md</action>
+            </if>
+            <if
+              response="y">
+              <action>Enter #yolo mode for the rest of the workflow</action>
+            </if>
+          </ask>
+        </if>
+      </substep>
+
+      <substep n="2d" title="Step Completion">
+        <check>If no special tags and NOT #yolo:</check>
+        <ask>Continue to next step? (y/n/edit)</ask>
+      </substep>
+    </step>
+
+    <step n="3" title="Completion">
+      <check>Confirm document saved to output path</check>
+      <action>Report workflow completion</action>
+    </step>
+  </flow>
+
+  <execution-modes>
+    <mode name="normal">Full user interaction and confirmation of EVERY step at EVERY template output - NO EXCEPTIONS except yolo MODE</mode>
+    <mode name="yolo">Skip all confirmations and elicitation, minimize prompts and try to produce all of the workflow automatically by
+      simulating the remaining discussions with an simulated expert user</mode>
+  </execution-modes>
+
+  <supported-tags desc="Instructions can use these tags">
+    <structural>
+      <tag>step n="X" goal="..." - Define step with number and goal</tag>
+      <tag>optional="true" - Step can be skipped</tag>
+      <tag>if="condition" - Conditional execution</tag>
+      <tag>for-each="collection" - Iterate over items</tag>
+      <tag>repeat="n" - Repeat n times</tag>
+    </structural>
+    <execution>
+      <tag>action - Required action to perform</tag>
+      <tag>action if="condition" - Single conditional action (inline, no closing tag needed)</tag>
+      <tag>check if="condition"&gt;...&lt;/check&gt; - Conditional block wrapping multiple items (closing tag required)</tag>
+      <tag>ask - Get user input (ALWAYS wait for response before continuing)</tag>
+      <tag>goto - Jump to another step</tag>
+      <tag>invoke-workflow - Call another workflow</tag>
+      <tag>invoke-task - Call a task</tag>
+      <tag>invoke-protocol - Execute a reusable protocol (e.g., discover_inputs)</tag>
+      <tag>invoke-subagent - Spawn single Claude subagent using Task tool</tag>
+      <tag>invoke-parallel - Spawn multiple Claude subagents in parallel using Task tool</tag>
+      <tag>sync-point - Wait for background subagents to complete and collect results</tag>
+    </execution>
+    <output>
+      <tag>template-output - Save content checkpoint</tag>
+      <tag>critical - Cannot be skipped</tag>
+      <tag>example - Show example output</tag>
+    </output>
+  </supported-tags>
+
+  <protocols desc="Reusable workflow protocols that can be invoked via invoke-protocol tag">
+    <protocol name="discover_inputs" desc="Smart file discovery and loading based on input_file_patterns">
+      <objective>Intelligently load project files (whole or sharded) based on workflow's input_file_patterns configuration</objective>
+
+      <critical>Only execute if workflow.yaml contains input_file_patterns section</critical>
+
+      <flow>
+        <step n="1" title="Parse Input File Patterns">
+          <action>Read input_file_patterns from loaded workflow.yaml</action>
+          <action>For each pattern group (prd, architecture, epics, etc.), note the load_strategy if present</action>
+        </step>
+
+        <step n="2" title="Load Files Using Smart Strategies">
+          <iterate>For each pattern in input_file_patterns:</iterate>
+
+          <substep n="2a" title="Try Sharded Documents First">
+            <check if="sharded pattern exists">
+              <action>Determine load_strategy from pattern config (defaults to FULL_LOAD if not specified)</action>
+
+              <strategy name="FULL_LOAD">
+                <desc>Load ALL files in sharded directory - used for PRD, Architecture, UX, brownfield docs</desc>
+                <action>Use glob pattern to find ALL .md files (e.g., "{output_folder}/*architecture*/*.md")</action>
+                <action>Load EVERY matching file completely</action>
+                <action>Concatenate content in logical order (index.md first if exists, then alphabetical)</action>
+                <action>Store in variable: {pattern_name_content}</action>
+              </strategy>
+
+              <strategy name="SELECTIVE_LOAD">
+                <desc>Load specific shard using template variable - example: used for epics with {{epic_num}}</desc>
+                <action>Check for template variables in sharded_single pattern (e.g., {{epic_num}})</action>
+                <action>If variable undefined, ask user for value OR infer from context</action>
+                <action>Resolve template to specific file path</action>
+                <action>Load that specific file</action>
+                <action>Store in variable: {pattern_name_content}</action>
+              </strategy>
+
+              <strategy name="INDEX_GUIDED">
+                <desc>Load index.md, analyze structure and description of each doc in the index, then intelligently load relevant docs</desc>
+                <mandate>DO NOT BE LAZY - use best judgment to load documents that might have relevant information, even if only a 5% chance</mandate>
+                <action>Load index.md from sharded directory</action>
+                <action>Parse table of contents, links, section headers</action>
+                <action>Analyze workflow's purpose and objective</action>
+                <action>Identify which linked/referenced documents are likely relevant</action>
+                <example>If workflow is about authentication and index shows "Auth Overview", "Payment Setup", "Deployment" → Load auth
+                  docs, consider deployment docs, skip payment</example>
+                <action>Load all identified relevant documents</action>
+                <action>Store combined content in variable: {pattern_name_content}</action>
+                <note>When in doubt, LOAD IT - context is valuable, being thorough is better than missing critical info</note>
+              </strategy>
+              <action>Mark pattern as RESOLVED, skip to next pattern</action>
+            </check>
+          </substep>
+
+          <substep n="2b" title="Try Whole Document if No Sharded Found">
+            <check if="no sharded matches found OR no sharded pattern exists">
+              <action>Attempt glob match on 'whole' pattern (e.g., "{output_folder}/*prd*.md")</action>
+              <check if="matches found">
+                <action>Load ALL matching files completely (no offset/limit)</action>
+                <action>Store content in variable: {pattern_name_content} (e.g., {prd_content})</action>
+                <action>Mark pattern as RESOLVED, skip to next pattern</action>
+              </check>
+            </check>
+          </substep>
+
+          <substep n="2c" title="Handle Not Found">
+            <check if="no matches for sharded OR whole">
+              <action>Set {pattern_name_content} to empty string</action>
+              <action>Note in session: "No {pattern_name} files found" (not an error, just unavailable, offer use change to provide)</action>
+            </check>
+          </substep>
+        </step>
+
+        <step n="3" title="Report Discovery Results">
+          <action>List all loaded content variables with file counts</action>
+          <example>
+            ✓ Loaded {prd_content} from 5 sharded files: prd/index.md, prd/requirements.md, ...
+            ✓ Loaded {architecture_content} from 1 file: Architecture.md
+            ✓ Loaded {epics_content} from selective load: epics/epic-3.md
+            ○ No ux_design files found
+          </example>
+          <note>This gives workflow transparency into what context is available</note>
+        </step>
+      </flow>
+
+    </protocol>
+  </protocols>
+
+  <subagent-execution desc="How to process invoke-subagent, invoke-parallel, and sync-point tags">
+    <critical>These tags enable autonomous Claude subagent execution using the Task tool</critical>
+    <critical>Subagents work independently and can run in parallel for faster execution</critical>
+
+    <tag name="invoke-subagent">
+      <purpose>Spawn a single Claude subagent for autonomous task execution</purpose>
+
+      <attributes>
+        <attr name="type" required="true">Subagent type: explore, plan, bash, or general</attr>
+        <attr name="mode" default="blocking">blocking (wait for completion) or background (continue immediately)</attr>
+        <attr name="id">Unique identifier for this subagent (required if background mode)</attr>
+      </attributes>
+
+      <child-elements>
+        <element name="objective" required="true">Clear description of what the subagent should accomplish</element>
+        <element name="context">Context to provide to the subagent (file paths, variables, data)</element>
+        <element name="constraints">Constraints like max-turns, halt-conditions, timeout</element>
+        <element name="output-var" required="true">Variable name to store the subagent's result (e.g., {epic_intelligence})</element>
+      </child-elements>
+
+      <execution-instructions>
+        <step n="1">Parse the invoke-subagent tag and extract all attributes and child elements</step>
+        <step n="2">Determine subagent type from 'type' attribute</step>
+        <step n="3">Build the subagent prompt from objective, context, and constraints</step>
+        <step n="4">Use Claude Task tool to spawn the subagent:
+          - description: Short 3-5 word summary of objective
+          - prompt: Complete objective with all context and constraints
+          - subagent_type: Value from 'type' attribute (explore/plan/bash/general)
+          - run_in_background: true if mode="background", false if mode="blocking"
+        </step>
+        <step n="5" if="mode=blocking">Wait for subagent to complete and receive results</step>
+        <step n="6">Store the subagent's output in the variable specified by output-var</step>
+        <step n="7" if="mode=background">Save subagent task ID for later sync-point</step>
+        <step n="8">Continue to next workflow step</step>
+      </execution-instructions>
+
+      <example>
+        <![CDATA[
+        <invoke-subagent type="explore" mode="blocking">
+          <objective>Analyze Epic 1 from the epics document and extract complete context, requirements, and dependencies</objective>
+          <context>
+            <include>{epics_content}</include>
+            <focus>epic-1</focus>
+          </context>
+          <constraints>
+            <max-files>20</max-files>
+          </constraints>
+          <output-var>{epic_intelligence}</output-var>
+        </invoke-subagent>
+
+        Result stored in {epic_intelligence} variable for use in subsequent steps.
+        ]]>
+      </example>
+    </tag>
+
+    <tag name="invoke-parallel">
+      <purpose>Spawn multiple Claude subagents in parallel for faster execution</purpose>
+
+      <child-elements>
+        <element name="subagent" multiple="true">Multiple subagent definitions (same structure as invoke-subagent)</element>
+        <element name="sync-point">Optional wait point for all agents to complete</element>
+      </child-elements>
+
+      <execution-instructions>
+        <step n="1">Parse all subagent child elements within invoke-parallel block</step>
+        <step n="2">For each subagent, prepare Task tool invocation with:
+          - Unique ID from subagent's 'id' attribute (required)
+          - Type from subagent's 'type' attribute
+          - Objective from subagent's objective element
+          - Context from subagent's context element
+          - Output variable from subagent's output-var element
+        </step>
+        <step n="3">CRITICAL: Invoke ALL subagents in PARALLEL using a SINGLE message with multiple Task tool calls</step>
+        <step n="4" if="sync-point present">Wait for ALL subagents to complete before continuing</step>
+        <step n="5">Store each subagent's output in its respective output-var</step>
+        <step n="6" if="aggregate-results present">Combine all subagent results as specified</step>
+        <step n="7">Continue to next workflow step</step>
+      </execution-instructions>
+
+      <example>
+        <![CDATA[
+        <invoke-parallel>
+          <subagent id="epic-analysis" type="explore">
+            <objective>Analyze Epic 1 requirements and extract complete story context</objective>
+            <context>{epics_content}</context>
+            <output-var>{epic_intelligence}</output-var>
+          </subagent>
+          <subagent id="arch-analysis" type="explore">
+            <objective>Extract architecture constraints and patterns for authentication</objective>
+            <context>{architecture_content}</context>
+            <output-var>{arch_intelligence}</output-var>
+          </subagent>
+          <subagent id="git-analysis" type="bash">
+            <objective>Analyze last 5 commits for code patterns and conventions</objective>
+            <output-var>{git_intelligence}</output-var>
+          </subagent>
+          <sync-point>Wait for all 3 agents to complete</sync-point>
+        </invoke-parallel>
+
+        Results available in {epic_intelligence}, {arch_intelligence}, {git_intelligence} variables.
+        ]]>
+      </example>
+    </tag>
+
+    <tag name="sync-point">
+      <purpose>Wait for background subagents to complete and collect their results</purpose>
+
+      <attributes>
+        <attr name="for">Optional comma-separated list of subagent IDs to wait for (if omitted, waits for all background agents)</attr>
+        <attr name="timeout">Optional timeout in milliseconds (default: 120000)</attr>
+      </attributes>
+
+      <execution-instructions>
+        <step n="1">Identify which background subagents to wait for (all or specific IDs from 'for' attribute)</step>
+        <step n="2">Check status of each background subagent</step>
+        <step n="3">If any still running, wait for completion (up to timeout)</step>
+        <step n="4">Collect results from all completed subagents</step>
+        <step n="5">Store results in their respective output-var variables</step>
+        <step n="6" if="timeout exceeded">Handle timeout gracefully - report partial results available</step>
+        <step n="7">Continue to next workflow step</step>
+      </execution-instructions>
+
+      <example>
+        <![CDATA[
+        <!-- After spawning background agents earlier -->
+        <sync-point for="pattern-explorer, dependency-analyzer" timeout="180000" />
+        <!-- Now {discovered_patterns} and {dependency_status} are available -->
+        ]]>
+      </example>
+    </tag>
+
+    <feature-detection>
+      <title>Graceful Fallback When Task Tool Unavailable</title>
+      <instructions>
+        <step n="1">Before processing any subagent tag, check if Claude Task tool is available</step>
+        <step n="2">Set {task_tool_available} = true if available, false otherwise</step>
+        <step n="3">If Task tool unavailable:
+          - Log warning about subagent tags being unavailable
+          - Look for fallback actions in workflow (check if="{task_tool_available}" blocks)
+          - Execute fallback manual actions if specified
+          - If no fallback specified, execute the workflow step manually as best as possible
+        </step>
+        <step n="4">Workflows should use feature detection pattern:
+          <check if="{task_tool_available}">
+            <invoke-subagent>...</invoke-subagent>
+          </check>
+          <else>
+            <action>Manual fallback execution</action>
+          </else>
+        </step>
+      </instructions>
+    </feature-detection>
+
+    <result-management>
+      <title>How to Store and Use Subagent Results</title>
+      <instructions>
+        <storage>
+          <step n="1">Each subagent result is stored in the variable specified by output-var</step>
+          <step n="2">Results are available immediately after blocking agents complete</step>
+          <step n="3">Results are available after sync-point for background agents</step>
+          <step n="4">Results persist for the duration of the workflow execution</step>
+        </storage>
+        <usage>
+          <step n="1">Access results using {variable_name} syntax in subsequent steps</step>
+          <step n="2">Results can be used in template-output sections</step>
+          <step n="3">Results can be passed to other subagents as context</step>
+          <step n="4">Results can be used in conditional checks</step>
+        </usage>
+        <structure>
+          <note>Subagent results typically include:</note>
+          <field>status - "completed", "failed", "timeout"</field>
+          <field>output - The main result from the subagent</field>
+          <field>findings - Structured findings or insights (for Explore agents)</field>
+          <field>errors - Any errors or issues encountered</field>
+        </structure>
+      </instructions>
+    </result-management>
+
+    <error-handling>
+      <title>Handling Subagent Failures and Timeouts</title>
+      <instructions>
+        <step n="1">If subagent fails to spawn: Log error and execute fallback action if specified</step>
+        <step n="2">If subagent times out: Store partial results if available, set status to "timeout"</step>
+        <step n="3">If subagent encounters error: Store error details in result variable, set status to "failed"</step>
+        <step n="4">Check result status before using: if "{result_variable}.status" != "completed", handle appropriately</step>
+        <step n="5">Workflows can specify error handling:
+          <check if="{result_variable}.status == 'failed'">
+            <action>Handle failure - fallback or report to user</action>
+          </check>
+        </step>
+      </instructions>
+    </error-handling>
+
+    <best-practices>
+      <practice>Use parallel invocation when tasks are independent (epic + architecture + git analysis)</practice>
+      <practice>Use background mode for long-running tasks that don't block immediate next steps</practice>
+      <practice>Always specify clear, focused objectives for subagents</practice>
+      <practice>Provide sufficient context but avoid overwhelming subagents with unnecessary data</practice>
+      <practice>Use appropriate subagent types: Explore for codebase analysis, Plan for strategy, Bash for commands, general for mixed tasks</practice>
+      <practice>Implement feature detection and graceful fallback for workflows that must work without Task tool</practice>
+      <practice>Validate subagent results before using them in critical workflow steps</practice>
+    </best-practices>
+  </subagent-execution>
+
+  <llm final="true">
+    <critical-rules>
+      • This is the complete workflow execution engine
+      • You MUST Follow instructions exactly as written
+      • The workflow execution engine is governed by: {project-root}/_skad/core/tasks/workflow.xml
+      • You MUST have already loaded and processed: {installed_path}/workflow.yaml
+      • This workflow uses INTENT-DRIVEN PLANNING - adapt organically to product type and context
+      • YOU ARE FACILITATING A CONVERSATION With a user to produce a final document step by step. The whole process is meant to be
+      collaborative helping the user flesh out their ideas. Do not rush or optimize and skip any section.
+    </critical-rules>
+  </llm>
+</task> 
