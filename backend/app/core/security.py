@@ -95,21 +95,25 @@ def decode_access_token(token: str) -> Dict[str, Any] | None:
 # ── Lockout Logic ───────────────────────────────────────────────────
 
 class LockoutManager:
-    """In-memory brute-force protection.
+    """In-memory brute-force protection with exponential backoff.
 
     After `max_attempts` failed auth within the lockout window,
-    the user is locked out for `lockout_seconds`.
+    the user is locked out for `lockout_seconds`.  Each consecutive
+    lockout doubles the duration (exponential backoff) up to `max_lockout_seconds`.
     """
 
     def __init__(
         self,
         max_attempts: int = 3,
         lockout_seconds: int = 60,
+        max_lockout_seconds: int = 3600,
     ) -> None:
         self.max_attempts = max_attempts
         self.lockout_seconds = lockout_seconds
+        self.max_lockout_seconds = max_lockout_seconds
         self._failures: Dict[str, list[float]] = {}  # user_id → [timestamps]
         self._lockouts: Dict[str, float] = {}  # user_id → lockout_until
+        self._lockout_streak: Dict[str, int] = {}  # user_id → consecutive lockout count
 
     def is_locked_out(self, user_id: str) -> bool:
         """Check if a user is currently locked out."""
@@ -130,6 +134,7 @@ class LockoutManager:
         """Record a failed auth attempt.
 
         Returns True if lockout has been triggered.
+        Uses exponential backoff: base × 2^(streak-1), capped at max_lockout_seconds.
         """
         now = time.time()
         failures = self._failures.setdefault(user_id, [])
@@ -139,17 +144,29 @@ class LockoutManager:
         failures.append(now)
 
         if len(failures) >= self.max_attempts:
-            self._lockouts[user_id] = now + self.lockout_seconds
+            streak = self._lockout_streak.get(user_id, 0) + 1
+            self._lockout_streak[user_id] = streak
+            duration = min(
+                self.lockout_seconds * (2 ** (streak - 1)),
+                self.max_lockout_seconds,
+            )
+            self._lockouts[user_id] = now + duration
             self._failures.pop(user_id, None)
-            logger.warning("auth_lockout_triggered", user_id=user_id, duration=self.lockout_seconds)
+            logger.warning(
+                "auth_lockout_triggered",
+                user_id=user_id,
+                duration=duration,
+                streak=streak,
+            )
             return True
 
         return False
 
     def clear(self, user_id: str) -> None:
-        """Clear failures and lockout for a user (on successful auth)."""
+        """Clear failures, lockout, and streak for a user (on successful auth)."""
         self._failures.pop(user_id, None)
         self._lockouts.pop(user_id, None)
+        self._lockout_streak.pop(user_id, None)
 
 
 # Module-level singleton

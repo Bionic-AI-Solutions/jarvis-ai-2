@@ -71,6 +71,13 @@ class ErrorCode(str, Enum):
     AUTH_INSUFFICIENT_PERMISSIONS = "SEC_005"
     AUTH_BRUTE_FORCE_DETECTED = "SEC_006"
     MODE_LOCKED = "SEC_007"
+    AUDIT_INTEGRITY_FAILED = "SEC_008"
+    SESSION_NOT_FOUND = "SEC_009"
+    SESSION_ALREADY_REVOKED = "SEC_010"
+    ENCRYPTION_FAILED = "SEC_011"
+    DECRYPTION_FAILED = "SEC_012"
+    PASSPHRASE_WEAK = "SEC_013"
+    QUEUE_EMPTY = "SEC_014"
 
     # ── 4XXX: System / Infrastructure Errors ────────────────
     DB_CONNECTION_FAILED = "SYS_001"
@@ -98,6 +105,11 @@ class ErrorCode(str, Enum):
     INTERNAL_ERROR = "GEN_001"
     NOT_FOUND = "GEN_002"
     METHOD_NOT_ALLOWED = "GEN_003"
+
+    # ── 6XXX: Learning Errors ───────────────────────────────
+    PATTERN_NOT_FOUND = "LRN_001"
+    SUGGESTION_ALREADY_HANDLED = "LRN_002"
+    CONFIDENCE_OUT_OF_RANGE = "LRN_003"
     RATE_LIMITED = "GEN_004"
     SERVICE_UNAVAILABLE = "GEN_005"
 
@@ -261,6 +273,41 @@ ERROR_CATALOG: Dict[str, ErrorDefinition] = {
         message="System is in locked mode — request queued",
         ux_action="prompt_auth", retry_allowed=False, category="security",
     ),
+    ErrorCode.AUDIT_INTEGRITY_FAILED: ErrorDefinition(
+        code="SEC_008", http_status=500,
+        message="Audit log integrity check failed",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
+    ErrorCode.SESSION_NOT_FOUND: ErrorDefinition(
+        code="SEC_009", http_status=404,
+        message="Session not found",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
+    ErrorCode.SESSION_ALREADY_REVOKED: ErrorDefinition(
+        code="SEC_010", http_status=400,
+        message="Session has already been revoked",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
+    ErrorCode.ENCRYPTION_FAILED: ErrorDefinition(
+        code="SEC_011", http_status=500,
+        message="Data encryption failed",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
+    ErrorCode.DECRYPTION_FAILED: ErrorDefinition(
+        code="SEC_012", http_status=500,
+        message="Data decryption failed",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
+    ErrorCode.PASSPHRASE_WEAK: ErrorDefinition(
+        code="SEC_013", http_status=400,
+        message="Passphrase does not meet strength requirements",
+        ux_action="prompt_input", retry_allowed=True, category="security",
+    ),
+    ErrorCode.QUEUE_EMPTY: ErrorDefinition(
+        code="SEC_014", http_status=200,
+        message="No pending requests in queue",
+        ux_action="notify", retry_allowed=False, category="security",
+    ),
 
     # System errors
     ErrorCode.DB_CONNECTION_FAILED: ErrorDefinition(
@@ -381,6 +428,23 @@ ERROR_CATALOG: Dict[str, ErrorDefinition] = {
         code="GEN_005", http_status=503,
         message="Backend service temporarily unavailable",
         ux_action="suggest_retry", retry_allowed=True, category="general",
+    ),
+
+    # Learning errors
+    ErrorCode.PATTERN_NOT_FOUND: ErrorDefinition(
+        code="LRN_001", http_status=404,
+        message="Pattern not found",
+        ux_action="notify", retry_allowed=False, category="learning",
+    ),
+    ErrorCode.SUGGESTION_ALREADY_HANDLED: ErrorDefinition(
+        code="LRN_002", http_status=400,
+        message="Suggestion has already been accepted or dismissed",
+        ux_action="notify", retry_allowed=False, category="learning",
+    ),
+    ErrorCode.CONFIDENCE_OUT_OF_RANGE: ErrorDefinition(
+        code="LRN_003", http_status=400,
+        message="Confidence value must be between 0.0 and 1.0",
+        ux_action="prompt_input", retry_allowed=True, category="learning",
     ),
 }
 

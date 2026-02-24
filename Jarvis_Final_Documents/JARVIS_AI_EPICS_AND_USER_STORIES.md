@@ -2229,3 +2229,25 @@ CRITICAL PATH:
 - **Status:** ✅ RESOLVED
 
 ---
+
+### BUG-013 — Sprint 8: audit_service verify_chain returned wrong key names
+- **Sprint:** 8 (Security Hardening)
+- **Story:** 5.5 (Audit Logging)
+- **Severity:** Major
+- **Description:** `AuditService.verify_chain()` returned a dict with keys `checked` and `broken_at`, but the `AuditVerifyResponse` schema and frontend expected `entries_checked`, `first_broken_id`, and `message`.
+- **Root Cause:** Mismatch between the service return dictionary keys and the schema field names defined in `schemas/audit.py`.
+- **Fix:** Updated `verify_chain()` return dict to use `entries_checked`, `first_broken_id`, and `message` keys matching the schema.
+- **Status:** ✅ RESOLVED
+
+---
+
+### BUG-014 — Sprint 8: audit hash chain verification failed after SQLite round-trip
+- **Sprint:** 8 (Security Hardening)
+- **Story:** 5.5 (Audit Logging)
+- **Severity:** Critical
+- **Description:** `verify_chain()` hash comparison always failed because the timestamp used during hash computation on read differed from the timestamp used during hash computation on write, even though the same `datetime` object was stored.
+- **Root Cause:** `datetime.isoformat()` produces variable-length output (e.g., may include or omit microseconds/timezone info). After SQLite stores and retrieves the timestamp, `isoformat()` output can differ, breaking the SHA-256 hash comparison.
+- **Fix:** Added `_format_ts()` static method using `strftime("%Y-%m-%dT%H:%M:%S.%f")` for deterministic timestamp formatting. Applied consistently in both `log()` (write) and `verify_chain()` (read).
+- **Status:** ✅ RESOLVED
+
+---

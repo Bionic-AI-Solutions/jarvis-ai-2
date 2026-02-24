@@ -1,6 +1,8 @@
-"""Auth routes — passphrase setup, lock/unlock, verification.
+"""Auth routes — passphrase setup, lock/unlock, verification, strength check.
 
 Story 5.1: Passphrase Authentication
+Story 5.3: Brute-Force (exponential backoff)
+Story 5.7: Data Encryption helpers
 """
 
 from __future__ import annotations
@@ -11,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.schemas.auth import (
     AuthResponse,
+    AutoLockTimeoutRequest,
     LockStatusResponse,
     PassphraseSetRequest,
+    PassphraseStrengthResponse,
     PassphraseVerifyRequest,
 )
 from app.services.auth_service import AuthService
+from app.services.encryption_service import check_passphrase_strength
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -95,3 +100,20 @@ async def unlock_system(
         "attempts_remaining": result.get("attempts_remaining", 0),
         "locked_out": result.get("locked_out", False),
     }
+
+
+@router.post("/passphrase/strength", response_model=PassphraseStrengthResponse)
+async def check_strength(data: PassphraseSetRequest):
+    """Check passphrase strength without setting it."""
+    result = check_passphrase_strength(data.passphrase)
+    return PassphraseStrengthResponse(**result)
+
+
+@router.post("/auto-lock-timeout")
+async def set_auto_lock_timeout(
+    data: AutoLockTimeoutRequest,
+    svc: AuthService = Depends(_auth_service),
+):
+    """Configure auto-lock timeout (in minutes, 0=disabled)."""
+    svc.set_auto_lock_timeout(data.minutes)
+    return {"ok": True, "auto_lock_timeout_mins": data.minutes}

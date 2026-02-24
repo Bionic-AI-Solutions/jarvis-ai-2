@@ -189,3 +189,82 @@ export interface RecoverySuggestionResult {
   generated_at: string;
   model_used: string;
 }
+
+// ── Sprint 8: Security & Learning Types ─────────────────────
+
+/** Audit trail entry */
+export interface AuditEntry {
+  id: string;
+  actor: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  detail: string | null;
+  ip_address: string;
+  result: string;
+  entry_hash: string;
+  prev_hash: string | null;
+  timestamp: string;
+}
+
+/** Audit chain verification result */
+export interface AuditVerifyResult {
+  valid: boolean;
+  entries_checked: number;
+  first_broken_id: string | null;
+  message: string;
+}
+
+/** Active session */
+export interface ActiveSession {
+  id: string;
+  user_id: string;
+  token_jti: string;
+  ip_address: string;
+  user_agent: string | null;
+  is_active: boolean;
+  created_at: string;
+  last_activity: string;
+}
+
+/** Queued request item */
+export interface QueueItem {
+  id: string;
+  session_id: string | null;
+  request_type: string;
+  payload: Record<string, unknown>;
+  status: string;
+  timestamp: string;
+}
+
+/** Execution pattern */
+export interface ExecutionPattern {
+  id: string;
+  pattern_hash: string;
+  intent: string;
+  steps: Array<{ agent: string; action: string }>;
+  frequency: number;
+  success_rate: number;
+  confidence: number;
+  suggested: boolean;
+  accepted: boolean;
+  last_seen: string;
+}
+
+/** Confidence history entry */
+export interface ConfidenceHistoryEntry {
+  id: string;
+  context: string;
+  old_value: number;
+  new_value: number;
+  reason: string;
+  timestamp: string;
+}
+
+/** Passphrase strength result */
+export interface PassphraseStrength {
+  strong: boolean;
+  score: number;
+  feedback: string[];
+}
+

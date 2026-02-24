@@ -1,10 +1,10 @@
-"""Security-related models: AuthLog, FailureHistory, PendingRequest."""
+"""Security-related models: AuthLog, FailureHistory, PendingRequest, AuditEntry, ActiveSession."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UUIDPrimaryKeyMixin, utcnow
@@ -24,6 +24,47 @@ class AuthLog(Base, UUIDPrimaryKeyMixin):
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="127.0.0.1")
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class AuditEntry(Base, UUIDPrimaryKeyMixin):
+    """Immutable audit trail entry with hash-chain verification (Story 5.5)."""
+
+    __tablename__ = "audit_entries"
+
+    actor: Mapped[str] = mapped_column(String(100), nullable=False, default="system")
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="127.0.0.1")
+    result: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+
+class ActiveSession(Base, UUIDPrimaryKeyMixin):
+    """Tracked session for session management (Story 5.6)."""
+
+    __tablename__ = "active_sessions"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_jti: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="127.0.0.1")
+    user_agent: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    last_activity: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
 

@@ -15,7 +15,7 @@ from app.core.logging_config import setup_logging
 from app.core.middleware import setup_middleware
 from app.db.init_db import init_db
 from app.db.session import close_engine
-from app.routes import agents, auth, chats, execution, health, settings, voice, workflows, ws
+from app.routes import agents, audit, auth, chats, execution, health, learning, queue, sessions, settings, voice, workflows, ws
 
 
 @asynccontextmanager
@@ -61,6 +61,10 @@ def create_app() -> FastAPI:
     app.include_router(agents.router)
     app.include_router(voice.router)
     app.include_router(ws.router)
+    app.include_router(audit.router)
+    app.include_router(sessions.router)
+    app.include_router(queue.router)
+    app.include_router(learning.router)
 
     return app
 

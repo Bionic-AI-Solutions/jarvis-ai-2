@@ -1670,3 +1670,395 @@ body {
   color: var(--text-muted);
   text-align: right;
 }
+
+/* ── Sprint 8: Lock Screen ──────────────────────────────── */
+
+.lock-screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lock-screen-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 40px 32px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+
+.lock-screen-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.lock-screen-title {
+  color: var(--text-primary);
+  margin: 0 0 20px;
+  font-size: 20px;
+}
+
+.lock-screen-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.lock-screen-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.lock-screen-error {
+  color: var(--accent-red);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.lock-screen-attempts {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+.lock-screen-lockout {
+  color: var(--accent-red);
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.lock-screen-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.lock-screen-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.lock-screen-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Sprint 8: Passphrase Strength ──────────────────────── */
+
+.passphrase-strength {
+  margin: 8px 0;
+}
+
+.passphrase-strength-bar-bg {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.passphrase-strength-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s, background-color 0.3s;
+}
+
+.passphrase-strength-info {
+  margin-top: 4px;
+}
+
+.passphrase-strength-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.passphrase-strength-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.passphrase-strength-feedback {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.passphrase-strength-feedback li {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-left: 12px;
+  position: relative;
+}
+
+.passphrase-strength-feedback li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--text-muted);
+}
+
+/* ── Sprint 8: Audit Log Viewer ─────────────────────────── */
+
+.audit-log-viewer {
+  padding: 16px;
+}
+
+.audit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.audit-header h3 {
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.audit-verify-btn {
+  padding: 6px 14px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.audit-verify-btn:disabled {
+  opacity: 0.5;
+}
+
+.audit-verify-result {
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-verify-result.valid {
+  background: rgba(46, 160, 67, 0.15);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+
+.audit-verify-result.invalid {
+  background: rgba(248, 81, 73, 0.15);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+}
+
+.audit-verify-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.audit-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.audit-filter-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.audit-error {
+  color: var(--accent-red);
+  font-size: 13px;
+}
+
+.audit-loading, .audit-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.audit-table th {
+  text-align: left;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.audit-table td {
+  padding: 8px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.audit-result-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.audit-result-badge.success {
+  background: rgba(46, 160, 67, 0.15);
+  color: var(--accent-green);
+}
+
+.audit-result-badge.failure {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--accent-red);
+}
+
+.audit-hash {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.audit-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.audit-pagination button {
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.audit-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Sprint 8: Pattern Suggestions ──────────────────────── */
+
+.pattern-suggestions {
+  padding: 12px;
+}
+
+.pattern-suggestions-title {
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.pattern-suggestion-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.pattern-suggestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pattern-intent {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.pattern-confidence {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(56, 139, 253, 0.15);
+  color: var(--accent-blue);
+}
+
+.pattern-suggestion-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pattern-suggestion-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.pattern-step-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.pattern-suggestion-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pattern-accept-btn {
+  padding: 4px 12px;
+  background: var(--accent-green);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pattern-dismiss-btn {
+  padding: 4px 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pattern-accept-btn:disabled,
+.pattern-dismiss-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

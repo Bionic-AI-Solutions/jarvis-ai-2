@@ -43,3 +43,18 @@ class AuthFailureResponse(BaseModel):
     locked_out: bool = False
     lockout_remaining_seconds: int = 0
     message: str = ""
+
+
+class PassphraseStrengthResponse(BaseModel):
+    """Passphrase strength evaluation result."""
+
+    strong: bool
+    score: int = Field(..., ge=0, le=4)
+    feedback: list[str] = Field(default_factory=list)
+
+
+class AutoLockTimeoutRequest(BaseModel):
+    """Request to update auto-lock timeout."""
+
+    minutes: int = Field(..., ge=0, le=1440, description="Auto-lock timeout in minutes (0 = disabled)")
+
