@@ -2251,3 +2251,14 @@ CRITICAL PATH:
 - **Status:** ✅ RESOLVED
 
 ---
+
+### BUG-015 — Sprint 9: settings `_current_mode` global leaks across tests
+- **Sprint:** 9 (QA & Hardening)
+- **Story:** 7.1 (Automated Testing)
+- **Severity:** Low (test-only)
+- **Description:** `test_get_mode_default` failed when run after `test_settings_mode_roundtrip` because `_current_mode` is a module-level global that persists across test functions.
+- **Root Cause:** `SettingsService.set_mode()` mutates module-level `_current_mode` which is **not** reset between tests (database tables are reset but global Python state is not).
+- **Fix:** Added explicit reset (`set_mode("auto")`) at end of `test_settings_mode_roundtrip` in the edge-case test suite.
+- **Status:** ✅ RESOLVED
+
+---
