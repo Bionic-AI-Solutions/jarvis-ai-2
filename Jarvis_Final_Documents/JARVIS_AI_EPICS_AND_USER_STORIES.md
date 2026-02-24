@@ -2107,3 +2107,82 @@ CRITICAL PATH:
 **MVP Status:** ✅ APPROVED FOR PHASE 1 DEVELOPMENT
 
 ---
+
+## BUG LOG — Sprint Implementation Defects
+
+> Bugs found during sprint-by-sprint implementation, logged for traceability.
+
+### BUG-001 — Sprint 1: MissingGreenlet lazy load error
+- **Sprint:** 1 (Database Layer)
+- **Story:** 2.3 (Basic Orchestration)
+- **Severity:** Blocker
+- **Description:** SQLAlchemy async sessions raised `MissingGreenlet` errors when accessing relationships lazily. Models loaded via lazy loading triggered synchronous IO in an async context.
+- **Root Cause:** Default lazy loading on relationships is incompatible with `asyncio` sessions.
+- **Fix:** Added `selectinload()` eager loading on all relationship queries and `db.refresh()` after inserts. Set `expire_on_commit=False` on session factory.
+- **Status:** ✅ RESOLVED
+
+### BUG-002 — Sprint 2: Agent dispatch field mismatches
+- **Sprint:** 2 (Agent Protocol)
+- **Story:** 2.1–2.4
+- **Severity:** Major
+- **Description:** Orchestrator and registry tests failed due to field name mismatches (`agent_name` vs `agent`, `data` vs `output`, `_agents.clear()` vs `.agents.clear()`).
+- **Root Cause:** Schema and protocol definitions evolved; tests referenced old field names.
+- **Fix:** Aligned test field names with actual protocol/schema definitions.
+- **Status:** ✅ RESOLVED
+
+### BUG-003 — Sprint 3: Duplicate DB fixture override
+- **Sprint:** 3 (Security)
+- **Story:** 3.x (Auth/Security)
+- **Severity:** Minor
+- **Description:** Sprint 3 test file defined a local `client` fixture that conflicted with the shared conftest `client` fixture, causing dependency injection failures.
+- **Root Cause:** Copy-paste of fixture from conftest into test file.
+- **Fix:** Removed local fixture, used shared conftest client.
+- **Status:** ✅ RESOLVED
+
+### BUG-004 — Sprint 4: scrollIntoView jsdom crash
+- **Sprint:** 4 (Electron Frontend)
+- **Story:** 4.x (Chat UI)
+- **Severity:** Minor
+- **Description:** `scrollIntoView` is not implemented in jsdom, causing test crashes on chat message rendering.
+- **Root Cause:** jsdom doesn't implement `scrollIntoView`.
+- **Fix:** Added guard `typeof el.scrollIntoView === 'function'` before calling.
+- **Status:** ✅ RESOLVED
+
+### BUG-005 — Sprint 5: Bearer token redaction order
+- **Sprint:** 5 (Execution Logger)
+- **Story:** 5.1 (Execution Logger)
+- **Severity:** Minor
+- **Description:** Sensitive data redactor was not redacting Bearer tokens correctly because the pattern order allowed a more generic pattern to match first.
+- **Root Cause:** Regex pattern ordering — generic patterns matched before the specific Bearer token pattern.
+- **Fix:** Reordered `REDACT_PATTERNS` to put Bearer token pattern first.
+- **Status:** ✅ RESOLVED
+
+### BUG-006 — Sprint 5: Floating-point precision in confidence
+- **Sprint:** 5 (Frontend)
+- **Story:** 5.3 (StepConfidence)
+- **Severity:** Trivial
+- **Description:** `calculateConfidence([0.80, 0.90])` returned `0.8500000000000001` instead of `0.85`, causing exact `toBe()` assertion failure.
+- **Root Cause:** IEEE 754 floating-point arithmetic.
+- **Fix:** Changed assertion to `toBeCloseTo(0.85)`.
+- **Status:** ✅ RESOLVED
+
+### BUG-007 — Sprint 6: Silence detection threshold mismatch
+- **Sprint:** 6 (Voice)
+- **Story:** 1.4 (Silence Detection)
+- **Severity:** Minor
+- **Description:** Silence detection tests failed because test data (amplitude=1 in 16-bit PCM) produces ~5.69 dB via the formula `20*log10(1/32768)+96`, which exceeded the default 5.0 dB threshold.
+- **Root Cause:** Test threshold (5.0 dB) was too low for the test data's actual dB level.
+- **Fix:** Changed test silence_db_threshold from 5.0 to 10.0 to correctly classify amplitude=1 as silent.
+- **Status:** ✅ RESOLVED
+
+### BUG-008 — Sprint 6: Orchestrator L5 recovery hangs tests
+- **Sprint:** 6 (Recovery Engine)
+- **Story:** 3.5 (L5 User Confirmation)
+- **Severity:** Major
+- **Description:** Sprint 2 orchestrator test `test_execute_step_l2_skip` hung indefinitely after Sprint 6 refactoring. The new recovery engine's L5 creates an `asyncio.Future` with 300s timeout waiting for user input that nobody resolves during unit tests.
+- **Root Cause:** Orchestrator always provides `user_confirm_fn` which creates a blocking Future. Old tests expected rapid L1→L2 skip behavior, but new 6-level chain blocks at L5.
+- **Fix:** Created `_FastRecoveryEngine` subclass in tests that overrides `_l5_user_confirm` to auto-skip for skippable steps.
+- **Status:** ✅ RESOLVED
+
+---
+

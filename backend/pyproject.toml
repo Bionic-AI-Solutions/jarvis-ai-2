@@ -1,0 +1,20 @@
+[project]
+name = "jarvis-ai-backend"
+version = "1.0.0"
+description = "JARVIS AI - Voice-activated desktop automation backend"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --cov=app --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "alembic/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+backend/venv/
+venv/
+.venv/
+
+# Node
+frontend/node_modules/
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+frontend/dist/
+frontend/out/
+
+# Test / Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+jarvis.log
+jarvis_errors.log
+
+# Data
+backend/data/
