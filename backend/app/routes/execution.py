@@ -195,3 +195,22 @@ async def get_recovery_suggestions(
 
     result = await recovery_suggestion_service.suggest(data)
     return result.to_dict()
+
+
+# ── Recovery User Confirmation (Fix #4) ──────────────────────
+
+@router.post("/{execution_id}/recovery/{step_index}")
+async def resolve_recovery(
+    execution_id: str,
+    step_index: int,
+    body: dict,
+):
+    """Resolve a pending L5 user confirmation dialog.
+    
+    Frontend posts the user's choice (retry / skip / cancel / try_manually / abort / save_for_later)
+    and the orchestrator wakes the pending recovery future.
+    """
+    action = body.get("action", "cancel")
+    orch = _get_orchestrator()
+    await orch.resolve_user_confirmation(execution_id, step_index, action)
+    return {"status": "ok", "action": action}

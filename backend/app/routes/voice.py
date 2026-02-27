@@ -1,7 +1,7 @@
-"""Voice routes — transcription, config, and status endpoints.
+"""Voice routes — transcription, TTS, config, and status endpoints.
 
 Stories 1.1–1.5: Voice activation, Whisper STT, pause/resume,
-silence detection, confidence thresholds.
+silence detection, confidence thresholds, text-to-speech.
 """
 
 from __future__ import annotations
@@ -10,9 +10,11 @@ import base64
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.services.voice_service import voice_service, VoiceConfig
+from app.services.piper_tts_service import piper_service
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
@@ -60,6 +62,18 @@ class SilenceResponse(BaseModel):
     avg_db: float
     duration_seconds: float
     should_submit: bool
+
+
+class TTSRequest(BaseModel):
+    """Text-to-speech synthesis request."""
+    text: str = Field(..., description="Text to convert to speech", min_length=1, max_length=5000)
+    voice: str | None = Field(None, description="Voice name (default: en-US-GuyNeural)")
+
+
+class TTSStatusResponse(BaseModel):
+    available: bool
+    engine: str
+    voices: list[str]
 
 
 # ── Endpoints ───────────────────────────────────────────
@@ -154,8 +168,75 @@ async def update_voice_config(req: VoiceConfigRequest) -> dict[str, Any]:
 async def voice_status() -> dict[str, Any]:
     """Check voice service status and Whisper availability."""
     whisper_info = await voice_service.check_whisper_available()
+    tts_info = await piper_service.check_piper_available()
     return {
         "service": "operational",
         "config": voice_service.config.to_dict(),
         "whisper": whisper_info,
+        "tts": tts_info,
     }
+
+
+@router.post("/tts")
+async def text_to_speech(req: TTSRequest) -> Response:
+    """Synthesize text to speech audio.
+    
+    Returns MP3 audio bytes directly (Content-Type: audio/mpeg).
+    Uses edge-tts (Microsoft Neural Voices) as the synthesis engine.
+    """
+    result = await piper_service.synthesize(
+        text=req.text,
+        voice=req.voice,
+    )
+    
+    if result.error or not result.audio_bytes:
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS synthesis failed: {result.error or 'No audio generated'}",
+        )
+    
+    return Response(
+        content=result.audio_bytes,
+        media_type="audio/mpeg",
+        headers={
+            "Content-Disposition": "inline",
+            "X-TTS-Engine": result.model_used,
+            "X-TTS-Duration-Ms": str(result.duration_ms),
+        },
+    )
+
+
+@router.get("/tts/status", response_model=TTSStatusResponse)
+async def tts_status() -> TTSStatusResponse:
+    """Check TTS engine availability and list voices."""
+    info = await piper_service.check_piper_available()
+    
+    # Check edge-tts availability
+    try:
+        import edge_tts
+        return TTSStatusResponse(
+            available=True,
+            engine="edge-tts",
+            voices=[
+                "en-US-GuyNeural",
+                "en-US-ChristopherNeural",
+                "en-US-AndrewNeural",
+                "en-US-JennyNeural",
+                "en-GB-RyanNeural",
+            ],
+        )
+    except ImportError:
+        pass
+    
+    if info.get("available"):
+        return TTSStatusResponse(
+            available=True,
+            engine="piper",
+            voices=info.get("voices", []),
+        )
+    
+    return TTSStatusResponse(
+        available=False,
+        engine="none",
+        voices=[],
+    )

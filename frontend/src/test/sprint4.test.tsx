@@ -161,6 +161,7 @@ describe('ChatPanel', () => {
           mode: 'chat',
           is_active: true,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           messages: [],
         },
       ],
@@ -181,6 +182,7 @@ describe('ChatPanel', () => {
           mode: 'chat',
           is_active: true,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           messages: [
             { id: 'msg-1', role: 'user', content: 'Hello JARVIS', sequence: 1, created_at: new Date().toISOString() },
             { id: 'msg-2', role: 'assistant', content: 'Hello! How can I help?', sequence: 2, created_at: new Date().toISOString() },

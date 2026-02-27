@@ -1,0 +1,70 @@
+# generated: 2026-02-24
+# project: Jarvis AI 3
+# project_key: jarvis-ai-3
+# tracking_system: skad
+# story_location: _skad-output/implementation-artifacts/stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-02-24
+project: Jarvis AI 3
+project_key: jarvis-ai-3
+tracking_system: skad
+story_location: _skad-output/implementation-artifacts/stories
+
+development_status:
+  # === SPRINT 1: Make JARVIS Work (CRITICAL) ===
+  epic-1: in-progress
+  1-1-baseagent-protocol-and-wiring: ready-for-dev
+  1-2-chat-message-processing-pipeline: backlog
+  1-3-local-orchestrator-dispatch: backlog
+  2-6-cma-context-management-agent: backlog
+  epic-1-retrospective: optional
+
+  # === SPRINT 2: Complete Agent Mesh ===
+  epic-2: backlog
+  2-1-clarification-agent: backlog
+  2-2-web-search-agent: backlog
+  2-3-spa-semantic-plan-adapter: backlog
+  2-4-saa-step-action-adapter: backlog
+  epic-2-retrospective: optional
+
+  # === SPRINT 3: Voice + Recovery + Learning ===
+  epic-3: backlog
+  2-5-user-agent-interface-bridge: backlog
+  2-7-app-registry-agent: backlog
+  2-8-workflow-learning-agent: backlog
+  4-1-recovery-l3-screenshot-verification: backlog
+  4-2-recovery-l4-replan: backlog
+  epic-3-retrospective: optional
+
+  # === SPRINT 4: Voice ===
+  epic-4: backlog
+  3-1-voice-activation-hotkey: backlog
+  3-2-whisper-stt-transcription: backlog
+  3-3-voice-pause-resume: backlog
+  3-4-silence-detection: backlog
+  epic-4-retrospective: optional
+
+  # === SPRINT 5: Security (Exists, Needs Testing) ===
+  epic-6: backlog
+  6-1-passphrase-authentication: backlog
+  6-2-locked-mode: backlog
+  6-3-brute-force-protection: backlog
+  epic-6-retrospective: optional

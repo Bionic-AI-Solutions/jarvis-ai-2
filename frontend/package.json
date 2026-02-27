@@ -2,6 +2,7 @@
   "name": "jarvis-ai-desktop",
   "version": "0.1.0",
   "description": "JARVIS AI Desktop — Electron + React frontend",
+  "author": "Bionic AI",
   "main": "electron/main.js",
   "private": true,
   "scripts": {

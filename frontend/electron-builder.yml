@@ -1,0 +1,20 @@
+appId: "com.bionicai.jarvis"
+productName: "JARVIS AI"
+files:
+  - dist/**/*
+  - electron/**/*
+  - node_modules/**/*
+  - package.json
+directories:
+  buildResources: assets
+  output: dist
+publish: null
+extraResources:
+  - from: ../backend/dist
+    to: ./
+win:
+  target:
+    - portable
+  sign: null
+  certificateFile: null
+  signingHashAlgorithms: null

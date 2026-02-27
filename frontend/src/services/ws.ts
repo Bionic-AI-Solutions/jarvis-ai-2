@@ -13,6 +13,9 @@ export type WsMessageType =
   | 'step_complete'
   | 'workflow_complete'
   | 'error'
+  | 'recovery'
+  | 'execution_paused'
+  | 'execution_resumed'
   | 'heartbeat';
 
 export interface WsMessage {
@@ -23,6 +26,22 @@ export interface WsMessage {
 
 type WsHandler = (msg: WsMessage) => void;
 
+// Determine WS URL based on environment
+const getWsUrl = (): string => {
+  // Check if running in Electron (preload exposes window.jarvis)
+  const isElectron = !!(window as any).jarvis;
+  const isFileProtocol = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+  
+  if (isElectron || isFileProtocol) {
+    // Production (Electron): Use direct backend URL
+    return 'ws://127.0.0.1:9000/ws';
+  } else {
+    // Development: Use relative WS URL through Vite proxy
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${window.location.host}/ws`;
+  }
+};
+
 class WebSocketClient {
   private ws: WebSocket | null = null;
   private url: string;
@@ -32,7 +51,7 @@ class WebSocketClient {
   private reconnectDelay = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(url: string = 'ws://127.0.0.1:9000/ws') {
+  constructor(url: string = getWsUrl()) {
     this.url = url;
   }
 

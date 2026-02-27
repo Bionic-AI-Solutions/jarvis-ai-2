@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ChatView } from './views/ChatView';
 import { WorkflowView } from './views/WorkflowView';
@@ -6,7 +6,7 @@ import { SettingsView } from './views/SettingsView';
 
 export function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Layout>
         <Routes>
           <Route path="/" element={<ChatView />} />
@@ -14,6 +14,6 @@ export function App() {
           <Route path="/settings" element={<SettingsView />} />
         </Routes>
       </Layout>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

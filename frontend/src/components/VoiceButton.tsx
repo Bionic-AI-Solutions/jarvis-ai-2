@@ -143,12 +143,16 @@ export default function VoiceButton({
         ),
       );
 
-      const resp = await api.request<TranscriptionResult>('/api/voice/transcribe', {
-        method: 'POST',
-        body: JSON.stringify({ audio_b64: b64 }),
-      });
-
-      onTranscription(resp);
+      const resp = await api.transcribeAudio(b64);
+      onTranscription({ 
+        text: resp.text, 
+        confidence: 0.95, 
+        language: 'en', 
+        duration_ms: elapsed,
+        auto_accepted: false,
+        needs_re_speak:false,
+        source: 'voice'
+      } as TranscriptionResult);
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Transcription failed');
     } finally {

@@ -5,7 +5,23 @@
  * Reads backend URL from Electron IPC or falls back to env/proxy.
  */
 
-const BASE_URL = '/api';
+// Determine base URL based on environment
+const getBaseUrl = (): string => {
+  // Check if running in Electron (preload exposes window.jarvis)
+  const isElectron = !!(window as any).jarvis;
+  // Also check if we're on file:// protocol (Electron production)
+  const isFileProtocol = window.location.protocol === 'file:';
+  
+  if (isElectron || isFileProtocol) {
+    // Production (Electron): Use direct backend URL
+    return 'http://127.0.0.1:9000/api';
+  } else {
+    // Development: Use Vite proxy (routes /api to backend)
+    return '/api';
+  }
+};
+
+const BASE_URL = getBaseUrl();
 
 interface RequestOptions {
   method?: string;
@@ -54,8 +70,16 @@ class ApiClient {
 
   // ── Health ──────────────────────────────────────────────
 
-  health() {
-    return this.request<HealthResponse>('/health'.replace('/api', ''), { method: 'GET' });
+  async health() {
+    // Health endpoint is at /health (no /api prefix)
+    const isElectron = !!(window as any).jarvis || window.location.protocol === 'file:';
+    const healthUrl = isElectron
+      ? 'http://127.0.0.1:9000/health'
+      : '/health';
+    
+    const response = await fetch(healthUrl);
+    if (!response.ok) throw new ApiError(response.status, 'Health check failed', {});
+    return response.json() as Promise<HealthResponse>;
   }
 
   // ── Auth ────────────────────────────────────────────────
@@ -95,7 +119,7 @@ class ApiClient {
   }
 
   sendMessage(chatId: string, content: string, role: string = 'user') {
-    return this.request(`/chats/${chatId}/messages`, {
+    return this.request<ChatMessage>(`/chats/${chatId}/messages`, {
       method: 'POST',
       body: { role, content },
     });
@@ -124,8 +148,18 @@ class ApiClient {
     });
   }
 
-  cancelExecution(executionId: string) {
-    return this.request(`/executions/${executionId}/cancel`, { method: 'POST' });
+  cancelExecution(executionId: string, reason?: string) {
+    return this.request(`/executions/${executionId}/cancel`, {
+      method: 'POST',
+      body: { reason: reason ?? null },
+    });
+  }
+
+  resolveRecovery(executionId: string, stepIndex: number, action: string) {
+    return this.request(`/executions/${executionId}/recovery/${stepIndex}`, {
+      method: 'POST',
+      body: { action },
+    });
   }
 
   // ── Settings ────────────────────────────────────────────
@@ -136,6 +170,77 @@ class ApiClient {
 
   updateSetting(key: string, value: string) {
     return this.request('/settings', { method: 'PUT', body: { key, value } });
+  }
+
+  // ── Voice ───────────────────────────────────────────────
+
+  transcribeAudio(audiob64: string) {
+    return this.request<{ text: string }>('/voice/transcribe', {
+      method: 'POST',
+      body: { audio_b64: audiob64 },
+    });
+  }
+
+  detectSilence(audiob64: string, sampleRate: number = 16000, sampleWidth: number = 2) {
+    return this.request<SilenceResponse>('/voice/silence', {
+      method: 'POST',
+      body: { audio_b64: audiob64, sample_rate: sampleRate, sample_width: sampleWidth },
+    });
+  }
+
+  getVoiceConfig() {
+    return this.request('/voice/config');
+  }
+
+  updateVoiceConfig(config: { confidence_threshold?: number; silence_duration?: number; max_recording_seconds?: number }) {
+    return this.request('/voice/config', { method: 'PUT', body: config });
+  }
+
+  /**
+   * Synthesize text to speech via edge-tts.
+   * Returns an ArrayBuffer of MP3 audio data.
+   */
+  async synthesizeSpeech(text: string, voice?: string): Promise<ArrayBuffer> {
+    const isElectron = !!(window as any).jarvis || window.location.protocol === 'file:';
+    const url = isElectron
+      ? `http://127.0.0.1:9000/api/voice/tts`
+      : `${this.baseUrl}/voice/tts`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+      },
+      body: JSON.stringify({ text, voice: voice || undefined }),
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'TTS synthesis failed', {});
+    }
+
+    return response.arrayBuffer();
+  }
+
+  /** Check TTS engine availability */
+  getTTSStatus() {
+    return this.request<{ available: boolean; engine: string; voices: string[] }>('/voice/tts/status');
+  }
+
+  // ── Learning ────────────────────────────────────────────
+
+  listPatterns(minConfidence?: number) {
+    const params = minConfidence != null ? `?min_confidence=${minConfidence}` : '';
+    return this.request<PatternListResponse>(`/learning/patterns${params}`);
+  }
+
+  listSuggestions(intent?: string) {
+    const params = intent ? `?intent=${encodeURIComponent(intent)}` : '';
+    return this.request<SuggestionListResponse>(`/learning/suggestions${params}`);
+  }
+
+  acceptSuggestion(patternId: string) {
+    return this.request(`/learning/suggestions/${patternId}/accept`, { method: 'POST' });
   }
 }
 
@@ -168,7 +273,32 @@ export interface ChatSession {
   mode: string;
   is_active: boolean;
   created_at: string;
-  messages: ChatMessage[];
+  updated_at: string;
+  messages?: ChatMessage[];
+}
+
+/** Pipeline metadata attached to assistant responses */
+export interface MessageMetadata {
+  message_type: 'chat' | 'clarification' | 'safety_blocked' | 'task_success' | 'task_error' | 'task';
+  pipeline_stages?: string[];
+  duration_ms?: number;
+  plan?: {
+    steps: Array<{ action: string; description: string }>;
+    confidence: number;
+  };
+  execution?: {
+    success: boolean;
+    steps_executed: number;
+    steps_total: number;
+    duration_ms: number;
+    step_results: Array<{
+      success: boolean;
+      description: string;
+      error?: string;
+      duration_ms: number;
+    }>;
+  };
+  observation?: Record<string, unknown>;
 }
 
 export interface ChatMessage {
@@ -177,15 +307,62 @@ export interface ChatMessage {
   content: string;
   sequence: number;
   created_at: string;
+  metadata?: MessageMetadata;
 }
 
 export interface Workflow {
   id: string;
   name: string;
-  description: string;
-  steps: unknown[];
-  version: number;
+  description?: string;
+  steps_json?: string;
+  trigger_type: string;
   is_active: boolean;
+  version: number;
+  tags?: string;
+  success_rate: number;
+  execution_count: number;
+  is_template: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SilenceResponse {
+  is_silent: boolean;
+  avg_db: number;
+  duration_seconds: number;
+  should_submit: boolean;
+}
+
+export interface PatternItem {
+  id: string;
+  pattern_hash: string;
+  intent: string;
+  steps: Array<{ agent: string; action: string }>;
+  frequency: number;
+  success_rate: number;
+  confidence: number;
+  suggested: boolean;
+  accepted: boolean;
+  last_seen: string;
+}
+
+export interface PatternListResponse {
+  patterns: PatternItem[];
+  total: number;
+}
+
+export interface SuggestionItem {
+  id: string;
+  intent: string;
+  steps: Array<{ agent: string; action: string }>;
+  confidence: number;
+  success_rate: number;
+  frequency: number;
+}
+
+export interface SuggestionListResponse {
+  suggestions: SuggestionItem[];
+  total: number;
 }
 
 export interface Execution {

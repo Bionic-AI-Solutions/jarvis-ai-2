@@ -83,7 +83,11 @@ async def test_delete_session(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_add_message(client: AsyncClient):
-    """Add a user message to a session."""
+    """Add a user message and receive an assistant response from the pipeline.
+
+    The endpoint now processes user messages through the agent pipeline and
+    returns the assistant reply (not the user's original message).
+    """
     create = await client.post("/api/chats", json={})
     sid = create.json()["id"]
 
@@ -93,25 +97,37 @@ async def test_add_message(client: AsyncClient):
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert body["content"] == "Hello, Jarvis!"
-    assert body["role"] == "user"
-    assert body["sequence"] == 1
+    # Pipeline returns assistant response, not the user message echo
+    assert body["role"] == "assistant"
+    assert isinstance(body["content"], str) and len(body["content"]) > 0
+    # User message is seq 1, assistant is seq 2
+    assert body["sequence"] == 2
 
 
 @pytest.mark.asyncio
 async def test_message_sequence_increments(client: AsyncClient):
-    """Messages in the same session should have incrementing sequence."""
+    """Messages in the same session should have incrementing sequence.
+
+    Each user message creates TWO DB records (user + assistant), so:
+      - 1st POST: user (seq 1) + assistant (seq 2) → returns seq 2
+      - 2nd POST: user (seq 3) + assistant (seq 4) → returns seq 4
+    """
     create = await client.post("/api/chats", json={})
     sid = create.json()["id"]
 
-    await client.post(f"/api/chats/{sid}/messages", json={"content": "First"})
-    resp = await client.post(f"/api/chats/{sid}/messages", json={"content": "Second"})
-    assert resp.json()["sequence"] == 2
+    resp1 = await client.post(f"/api/chats/{sid}/messages", json={"content": "First"})
+    assert resp1.json()["sequence"] == 2  # assistant response for "First"
+
+    resp2 = await client.post(f"/api/chats/{sid}/messages", json={"content": "Second"})
+    assert resp2.json()["sequence"] == 4  # assistant response for "Second"
 
 
 @pytest.mark.asyncio
 async def test_list_messages(client: AsyncClient):
-    """List all messages in a session."""
+    """List all messages in a session.
+
+    Each user POST creates user + assistant messages, so 2 POSTs → 4 messages.
+    """
     create = await client.post("/api/chats", json={})
     sid = create.json()["id"]
 
@@ -121,9 +137,12 @@ async def test_list_messages(client: AsyncClient):
     resp = await client.get(f"/api/chats/{sid}/messages")
     assert resp.status_code == 200
     msgs = resp.json()
-    assert len(msgs) == 2
-    assert msgs[0]["sequence"] == 1
-    assert msgs[1]["sequence"] == 2
+    # 2 user messages + 2 assistant responses = 4 total messages
+    assert len(msgs) == 4
+    assert msgs[0]["sequence"] == 1  # user Msg 1
+    assert msgs[1]["sequence"] == 2  # assistant response 1
+    assert msgs[2]["sequence"] == 3  # user Msg 2
+    assert msgs[3]["sequence"] == 4  # assistant response 2
 
 
 @pytest.mark.asyncio

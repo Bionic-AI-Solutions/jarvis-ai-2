@@ -53,9 +53,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await api.sendMessage(activeSessionId, content);
-      // Refresh the session to get the new messages
+      // Send message and get assistant response with metadata
+      const assistantMsg = await api.sendMessage(activeSessionId, content);
+
+      // Refresh the session to get all messages (user + assistant stored in DB)
       const session = await api.getChat(activeSessionId);
+
+      // Merge the metadata from the pipeline response into the last assistant message
+      // (DB doesn't store metadata, but the API response carries it)
+      if (session.messages && assistantMsg.metadata) {
+        const msgs = session.messages;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === 'assistant' && msgs[i].id === assistantMsg.id) {
+            msgs[i].metadata = assistantMsg.metadata;
+            break;
+          }
+        }
+      }
+
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === activeSessionId ? session : s)),
         isLoading: false,

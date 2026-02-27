@@ -1,10 +1,13 @@
-"""Agent registry — manages registered agents and their health.
+"""Agent Registry — Manages local BaseAgent instances for in-process dispatch.
 
-Story 2.1: Agent Registration & Discovery
-Story 2.2: Agent Health Monitoring
+Architecture Reference: JARVIS_AI_MASTER_COMPLETE_ARCHITECTURE_V3.md Part 4, Agent 12
+Role: Agent registration, discovery, and health monitoring
+Approach: All agents run in-process; registry stores live BaseAgent instances.
 
-Each agent is a lightweight REST service on localhost:91XX.
-The registry tracks their endpoints, status, and capabilities.
+This replaces the HTTP microservice approach with direct local dispatch:
+  - register_instance(agent) stores a BaseAgent reference
+  - get(name) returns the BaseAgent for direct .process() calls
+  - health checks call agent.health_check() locally (no HTTP)
 """
 
 from __future__ import annotations
@@ -13,17 +16,12 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-import httpx
-
-from app.agents.protocol import (
-    AgentHealthPayload,
-    AgentMessage,
-    AgentMessageType,
-)
-from app.config import get_settings
 from app.core.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from app.agents.protocol import BaseAgent
 
 logger = get_logger(__name__)
 
@@ -43,43 +41,58 @@ class AgentInfo:
     """Runtime information about a registered agent."""
 
     name: str
-    host: str
-    port: int
+    agent_type: str = "general"
+    description: str = ""
     capabilities: List[str] = field(default_factory=list)
     status: AgentStatus = AgentStatus.REGISTERED
     last_health_check: float = 0.0
     consecutive_failures: int = 0
-    version: str = "unknown"
-
-    @property
-    def base_url(self) -> str:
-        return f"http://{self.host}:{self.port}"
-
-    @property
-    def health_url(self) -> str:
-        return f"{self.base_url}/health"
-
-    @property
-    def execute_url(self) -> str:
-        return f"{self.base_url}/execute"
+    instance: Any = None  # BaseAgent instance (Any to avoid circular import)
 
 
 class AgentRegistry:
-    """In-memory registry of available agents.
+    """In-memory registry of local BaseAgent instances.
 
-    Provides registration, discovery, and periodic health monitoring.
+    Provides registration, discovery, and health monitoring for agents
+    running in the same process (no HTTP needed).
     """
 
     def __init__(self) -> None:
         self._agents: Dict[str, AgentInfo] = {}
         self._health_task: Optional[asyncio.Task] = None
-        self._http_client: Optional[httpx.AsyncClient] = None
 
     @property
     def agents(self) -> Dict[str, AgentInfo]:
         return dict(self._agents)
 
     # ── Registration ────────────────────────────────────────
+
+    def register_instance(self, agent: "BaseAgent", capabilities: List[str] | None = None) -> AgentInfo:
+        """Register a live BaseAgent instance.
+        
+        Args:
+            agent: A BaseAgent subclass instance (RAGAgent, SafetyAgent, etc.)
+            capabilities: Optional list of capability tags for discovery
+            
+        Returns:
+            AgentInfo record for the registered agent
+        """
+        info = AgentInfo(
+            name=agent.agent_name,
+            agent_type=agent.agent_type,
+            description=agent.description,
+            capabilities=capabilities or [],
+            status=AgentStatus.REGISTERED,
+            instance=agent,
+        )
+        self._agents[agent.agent_name] = info
+        logger.info(
+            "agent_registered",
+            name=agent.agent_name,
+            agent_type=agent.agent_type,
+            capabilities=capabilities,
+        )
+        return info
 
     def register(
         self,
@@ -88,19 +101,16 @@ class AgentRegistry:
         port: int | None = None,
         capabilities: list[str] | None = None,
     ) -> AgentInfo:
-        """Register a new agent or update an existing one."""
-        settings = get_settings()
-        if port is None:
-            port = settings.agent_base_port + len(self._agents)
-
+        """Legacy registration by name (backward compatibility).
+        
+        Prefer register_instance() for new code.
+        """
         info = AgentInfo(
             name=name,
-            host=host,
-            port=port,
             capabilities=capabilities or [],
         )
         self._agents[name] = info
-        logger.info("agent_registered", name=name, port=port, capabilities=capabilities)
+        logger.info("agent_registered_legacy", name=name, capabilities=capabilities)
         return info
 
     def unregister(self, name: str) -> bool:
@@ -114,6 +124,16 @@ class AgentRegistry:
     def get(self, name: str) -> AgentInfo | None:
         """Look up an agent by name."""
         return self._agents.get(name)
+
+    def get_instance(self, name: str) -> Optional["BaseAgent"]:
+        """Get the live BaseAgent instance by name.
+        
+        Returns None if agent not registered or has no instance.
+        """
+        info = self._agents.get(name)
+        if info and info.instance:
+            return info.instance
+        return None
 
     def get_by_capability(self, capability: str) -> List[AgentInfo]:
         """Find all agents that support a given capability."""
@@ -129,33 +149,41 @@ class AgentRegistry:
             if a.status in (AgentStatus.HEALTHY, AgentStatus.REGISTERED)
         ]
 
+    def list_all(self) -> List[Dict[str, Any]]:
+        """Return summary of all registered agents."""
+        return [
+            {
+                "name": info.name,
+                "agent_type": info.agent_type,
+                "status": info.status.value,
+                "capabilities": info.capabilities,
+                "has_instance": info.instance is not None,
+            }
+            for info in self._agents.values()
+        ]
+
     # ── Health Monitoring ───────────────────────────────────
 
     async def check_health(self, name: str) -> AgentStatus:
-        """Probe a single agent's health endpoint."""
+        """Check a single agent's health by calling its health_check() method."""
         info = self._agents.get(name)
         if info is None:
             return AgentStatus.OFFLINE
 
-        settings = get_settings()
-        timeout = httpx.Timeout(settings.agent_timeout_seconds)
+        if info.instance is None:
+            info.status = AgentStatus.OFFLINE
+            return AgentStatus.OFFLINE
 
         try:
-            if self._http_client is None:
-                self._http_client = httpx.AsyncClient(timeout=timeout)
-
-            resp = await self._http_client.get(info.health_url)
+            health = await info.instance.health_check()
             info.last_health_check = time.time()
 
-            if resp.status_code == 200:
-                data = AgentHealthPayload.model_validate(resp.json())
-                info.status = AgentStatus.HEALTHY if data.healthy else AgentStatus.DEGRADED
-                info.version = data.agent_version
-                info.capabilities = data.capabilities or info.capabilities
+            if health.get("healthy", False):
+                info.status = AgentStatus.HEALTHY
                 info.consecutive_failures = 0
             else:
-                info.consecutive_failures += 1
                 info.status = AgentStatus.DEGRADED
+                info.consecutive_failures += 1
 
         except Exception as exc:
             info.consecutive_failures += 1
@@ -173,7 +201,7 @@ class AgentRegistry:
         return info.status
 
     async def check_all_health(self) -> Dict[str, AgentStatus]:
-        """Probe all registered agents concurrently."""
+        """Check health of all registered agents concurrently."""
         results: Dict[str, AgentStatus] = {}
         tasks = {
             name: asyncio.create_task(self.check_health(name))
@@ -198,9 +226,6 @@ class AgentRegistry:
         if self._health_task:
             self._health_task.cancel()
             self._health_task = None
-        if self._http_client:
-            await self._http_client.aclose()
-            self._http_client = None
         logger.info("agent_health_monitor_stopped")
 
 

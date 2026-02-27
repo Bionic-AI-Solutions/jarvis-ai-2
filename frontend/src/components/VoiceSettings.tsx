@@ -20,7 +20,7 @@ export default function VoiceSettings({ className = '' }: VoiceSettingsProps) {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const resp = await api.request<VoiceConfig>('/api/voice/config');
+      const resp = await api.getVoiceConfig() as VoiceConfig;
       setConfig(resp);
       setError(null);
     } catch (err) {
@@ -37,10 +37,7 @@ export default function VoiceSettings({ className = '' }: VoiceSettingsProps) {
   const saveConfig = async (updates: Partial<VoiceConfig>) => {
     try {
       setSaving(true);
-      const resp = await api.request<VoiceConfig>('/api/voice/config', {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
+      const resp = await api.updateVoiceConfig(updates) as VoiceConfig;
       setConfig(resp);
       setError(null);
     } catch (err) {

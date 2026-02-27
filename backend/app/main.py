@@ -15,6 +15,7 @@ from app.core.logging_config import setup_logging
 from app.core.middleware import setup_middleware
 from app.db.init_db import init_db
 from app.db.session import close_engine
+from app.agents.startup import register_all_agents, shutdown_agents
 from app.routes import agents, audit, auth, chats, execution, health, learning, queue, sessions, settings, voice, workflows, ws
 
 
@@ -26,10 +27,12 @@ async def lifespan(app: FastAPI):
 
     # Startup
     await init_db()
+    await register_all_agents()
 
     yield
 
     # Shutdown
+    await shutdown_agents()
     await close_engine()
 
 

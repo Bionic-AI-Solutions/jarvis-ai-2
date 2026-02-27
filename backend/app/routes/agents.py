@@ -1,4 +1,4 @@
-"""Agent management API routes — Sprint 2."""
+"""Agent management API routes — updated for local instance registry."""
 
 from __future__ import annotations
 
@@ -14,20 +14,12 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
 # ── Schemas ─────────────────────────────────────────────────
 
-class AgentRegisterRequest(BaseModel):
-    name: str
-    host: str = "127.0.0.1"
-    port: int | None = None
-    capabilities: list[str] = Field(default_factory=list)
-
-
 class AgentResponse(BaseModel):
     name: str
-    host: str
-    port: int
+    agent_type: str
+    description: str = ""
     capabilities: list[str]
     status: str
-    version: str
     last_health_check: float
 
 
@@ -43,35 +35,14 @@ async def list_agents():
     return [
         AgentResponse(
             name=a.name,
-            host=a.host,
-            port=a.port,
+            agent_type=a.agent_type,
+            description=a.description,
             capabilities=a.capabilities,
             status=a.status.value,
-            version=a.version,
             last_health_check=a.last_health_check,
         )
         for a in agent_registry.agents.values()
     ]
-
-
-@router.post("", response_model=AgentResponse, status_code=201)
-async def register_agent(data: AgentRegisterRequest):
-    """Register a new agent in the registry."""
-    info = agent_registry.register(
-        name=data.name,
-        host=data.host,
-        port=data.port,
-        capabilities=data.capabilities,
-    )
-    return AgentResponse(
-        name=info.name,
-        host=info.host,
-        port=info.port,
-        capabilities=info.capabilities,
-        status=info.status.value,
-        version=info.version,
-        last_health_check=info.last_health_check,
-    )
 
 
 @router.delete("/{agent_name}")

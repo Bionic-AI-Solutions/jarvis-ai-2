@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { ExecutionProgress, ExecutionStep, StepStatus } from '../types';
+import type { ExecutionProgress, ExecutionStep, StepStatus, RecoveryNotification } from '../types';
 import { wsClient } from '../services/ws';
 
 interface ExecutionStore {
@@ -15,6 +15,9 @@ interface ExecutionStore {
 
   /** Currently focused execution ID */
   activeExecutionId: string | null;
+
+  /** Active recovery notification (L5/L6 dialog) */
+  recoveryNotification: RecoveryNotification | null;
 
   /** Get the active execution */
   activeExecution: () => ExecutionProgress | null;
@@ -34,6 +37,12 @@ interface ExecutionStore {
   /** Clear a finished execution from tracking */
   removeExecution: (executionId: string) => void;
 
+  /** Show recovery dialog */
+  showRecovery: (notification: RecoveryNotification) => void;
+
+  /** Clear recovery dialog after user acts */
+  clearRecovery: () => void;
+
   /** Initialize WebSocket listeners */
   initWsListeners: () => () => void;
 }
@@ -41,6 +50,7 @@ interface ExecutionStore {
 export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   executions: new Map(),
   activeExecutionId: null,
+  recoveryNotification: null,
 
   activeExecution: () => {
     const { executions, activeExecutionId } = get();
@@ -116,6 +126,14 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     });
   },
 
+  showRecovery: (notification) => {
+    set({ recoveryNotification: notification });
+  },
+
+  clearRecovery: () => {
+    set({ recoveryNotification: null });
+  },
+
   initWsListeners: () => {
     const unsubs: (() => void)[] = [];
 
@@ -177,6 +195,21 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         if (msg.execution_id) {
           get().completeExecution(msg.execution_id as string, 'failed');
         }
+      }),
+    );
+
+    // Recovery dialog events (L5/L6 user confirmation)
+    unsubs.push(
+      wsClient.on('recovery', (msg) => {
+        const notification: RecoveryNotification = {
+          type: 'recovery',
+          level: (msg.level as number) || 5,
+          message: (msg.message as string) || 'Recovery in progress',
+          execution_id: msg.execution_id as string,
+          step_index: (msg.step_index as number) || 0,
+          options: msg.options as string[] | undefined,
+        };
+        get().showRecovery(notification);
       }),
     );
 

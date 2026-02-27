@@ -1,8 +1,8 @@
-"""Workflow orchestrator — executes workflows step-by-step via agents.
+"""Workflow orchestrator — executes workflows step-by-step via local agents.
 
-Story 2.3: Basic Orchestration
-Story 2.4: Recovery Levels L1-L2
-Stories 3.1-3.6: Full 6-Level Recovery Engine integration
+Architecture Reference: JARVIS_AI_MASTER_COMPLETE_ARCHITECTURE_V3.md Part 4, Agent 11
+Role: Central coordinator with 6-level backtracking
+Dispatch: In-process — calls agent.process() directly via AgentRegistry
 
 Recovery Levels:
   L1: Timeout retry with exponential backoff (3x, 1.5x multiplier)
@@ -20,26 +20,20 @@ import json
 import time
 from typing import Any, Dict, Optional
 
-import httpx
-
-from app.agents.protocol import (
-    AgentExecutePayload,
-    AgentMessage,
-    AgentMessageType,
-    AgentResultPayload,
-)
 from app.agents.registry import AgentRegistry, AgentStatus, agent_registry
 from app.config import get_settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AgentError, WorkflowError
 from app.core.logging_config import get_logger
 from app.routes.ws import manager as ws_manager
+from app.services.desktop_automation import DesktopAutomationService
 from app.services.recovery_engine import (
     RecoveryContext,
     RecoveryEngine,
     RecoveryLevel as RecoveryLevelEnum,
     recovery_engine,
 )
+from app.services.vision_service import VisionService
 
 logger = get_logger(__name__)
 
@@ -74,6 +68,13 @@ class WorkflowOrchestrator:
         self._running_executions: Dict[str, bool] = {}
         self._paused_executions: Dict[str, asyncio.Event] = {}
         self._user_confirm_futures: Dict[str, asyncio.Future] = {}
+
+        # Services for screenshot/vision-based verification & recovery
+        self._desktop = DesktopAutomationService()
+        self._vision = VisionService()
+
+        # Lazy-loaded observer — resolved from registry on first use
+        self._observer: Any | None = None
 
     async def execute_workflow(
         self,
@@ -168,14 +169,22 @@ class WorkflowOrchestrator:
 
             step_status = "success" if result.get("success") else "failed"
 
-            # Notify: step_complete
-            await ws_manager.broadcast_to_execution(execution_id, {
+            # Notify: step_complete (includes observation data when available)
+            step_complete_msg: Dict[str, Any] = {
                 "type": "step_complete",
                 "execution_id": execution_id,
                 "step_index": idx,
                 "status": step_status,
                 "duration_ms": result.get("duration_ms", 0),
-            })
+            }
+            if result.get("observation"):
+                step_complete_msg["observation"] = {
+                    "verified": result["observation"].get("verified", False),
+                    "confidence": result["observation"].get("confidence", 0),
+                }
+            if result.get("recovery_level"):
+                step_complete_msg["recovery_level"] = result["recovery_level"]
+            await ws_manager.broadcast_to_execution(execution_id, step_complete_msg)
 
             if result.get("success"):
                 completed += 1
@@ -255,6 +264,44 @@ class WorkflowOrchestrator:
         if fut and not fut.done():
             fut.set_result({"action": choice})
 
+    # ── Observer Integration (Fix #2) ───────────────────────
+
+    def _get_observer(self):
+        """Lazy-load observer agent from registry."""
+        if self._observer is None:
+            self._observer = self.registry.get_instance("observer_agent")
+            if self._observer is None:
+                # Fallback: instantiate directly (imported at module level)
+                from app.agents.observer_agent import ObserverAgent
+                self._observer = ObserverAgent(desktop_service=self._desktop)
+                logger.info("observer_agent instantiated directly (not in registry)")
+        return self._observer
+
+    async def _observe_step(
+        self,
+        execution_id: str,
+        step_index: int,
+        step: Dict[str, Any],
+        exec_result: Dict[str, Any],
+    ) -> Dict[str, Any] | None:
+        """Run observer validation on a single executed step.
+
+        Returns observation dict or None if observer unavailable.
+        """
+        observer = self._get_observer()
+        if observer is None:
+            return None
+
+        try:
+            obs_result = await observer.process({
+                "step": step,
+                "exec_result": exec_result,
+            })
+            return obs_result.get("observation", {})
+        except Exception as e:
+            logger.warning("observer_step_failed", step=step_index, error=str(e))
+            return None
+
     async def _execute_step_with_recovery(
         self,
         execution_id: str,
@@ -271,6 +318,33 @@ class WorkflowOrchestrator:
         """
         # First attempt (no recovery)
         result = await self._dispatch_to_agent(agent_name, action, parameters)
+
+        # ── Observer validation (Fix #2) ────────────────────
+        # If the agent reports success, run independent verification
+        if result.get("success"):
+            observation = await self._observe_step(
+                execution_id=execution_id,
+                step_index=step_index,
+                step={"action": action, "parameters": parameters},
+                exec_result=result.get("data", result),
+            )
+            if observation and not observation.get("verified", True):
+                # Observer disagrees with the agent — treat as failure
+                logger.warning(
+                    "observer_mismatch",
+                    execution_id=execution_id,
+                    step=step_index,
+                    action=action,
+                    confidence=observation.get("confidence", 0),
+                )
+                result = {
+                    "success": False,
+                    "error": f"Observer verification failed (confidence {observation.get('confidence', 0):.0%})",
+                    "data": result.get("data"),
+                    "duration_ms": result.get("duration_ms", 0),
+                    "observation": observation,
+                }
+
         if result.get("success"):
             return result
 
@@ -295,6 +369,51 @@ class WorkflowOrchestrator:
                 self._user_confirm_futures.pop(key, None)
                 return {"action": "cancel"}
 
+        # ── Recovery callback: screenshot capture ─────────────
+        async def _screenshot(exec_id: str, s_index: int) -> dict:
+            """Capture a screenshot for recovery L3 re-verification."""
+            ss = await self._desktop.take_screenshot(
+                filename=f"recovery_{exec_id}_step{s_index}.png"
+            )
+            return ss  # {success, filepath, ...}
+
+        # ── Recovery callback: analyze screenshot ─────────────
+        async def _analyze_screenshot(screenshot_result: dict, action_desc: str) -> dict:
+            """Analyze a screenshot via moondream for recovery L3."""
+            filepath = screenshot_result.get("filepath")
+            if not filepath:
+                return {"confidence": 0.0, "error": "No screenshot filepath"}
+            vision_result = await self._vision.analyze_screenshot(
+                screenshot_path=filepath,
+                query=f"Did the following action succeed? Action: {action_desc}. "
+                      "Describe what you see and whether the expected result is visible.",
+            )
+            return {
+                "confidence": vision_result.confidence,
+                "text": vision_result.text,
+                "verified": vision_result.verified,
+                "ui_changes": vision_result.ui_changes,
+            }
+
+        # ── Recovery callback: replan via SAA ─────────────────
+        async def _replan(a_name: str, a_action: str, a_params: dict, error_msg: str) -> dict:
+            """Ask SAA agent to generate an alternative plan for a failed step."""
+            saa = self.registry.get_instance("saa_agent")
+            if not saa:
+                return {"steps": []}
+            try:
+                replan_result = await saa.process({
+                    "action": "replan",
+                    "original_agent": a_name,
+                    "original_action": a_action,
+                    "parameters": a_params,
+                    "error": error_msg,
+                })
+                return replan_result.get("plan", {"steps": []})
+            except Exception as e:
+                logger.error("replan_failed", error=str(e))
+                return {"steps": []}
+
         ctx = RecoveryContext(
             execution_id=execution_id,
             step_index=step_index,
@@ -307,6 +426,9 @@ class WorkflowOrchestrator:
             backoff_multiplier=1.5,
             skippable=skippable,
             execute_fn=_exec,
+            screenshot_fn=_screenshot,
+            analyze_screenshot_fn=_analyze_screenshot,
+            replan_fn=_replan,
             notify_fn=_notify,
             user_confirm_fn=_user_confirm,
         )
@@ -339,53 +461,41 @@ class WorkflowOrchestrator:
         action: str,
         parameters: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Send an execute command to an agent and parse the response."""
-        agent = self.registry.get(agent_name)
-        if agent is None:
-            return {"success": False, "error": f"Agent '{agent_name}' not found in registry", "duration_ms": 0}
-
-        if agent.status == AgentStatus.UNHEALTHY:
-            return {"success": False, "error": f"Agent '{agent_name}' is unhealthy", "duration_ms": 0}
-
-        settings = get_settings()
-        payload = AgentExecutePayload(
-            action=action,
-            parameters=parameters,
-            timeout_seconds=settings.agent_timeout_seconds,
-        )
-        message = AgentMessage(
-            type=AgentMessageType.EXECUTE,
-            agent_name=agent_name,
-            payload=payload.model_dump(),
-        )
+        """Dispatch to a local BaseAgent instance via the registry.
+        
+        Calls agent.process() directly — no HTTP needed.
+        """
+        agent_instance = self.registry.get_instance(agent_name)
+        if agent_instance is None:
+            # Fallback: check by AgentInfo
+            agent_info = self.registry.get(agent_name)
+            if agent_info is None:
+                return {"success": False, "error": f"Agent '{agent_name}' not found in registry", "duration_ms": 0}
+            if agent_info.status == AgentStatus.UNHEALTHY:
+                return {"success": False, "error": f"Agent '{agent_name}' is unhealthy", "duration_ms": 0}
+            return {"success": False, "error": f"Agent '{agent_name}' registered but has no local instance", "duration_ms": 0}
 
         start = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=settings.agent_timeout_seconds) as client:
-                resp = await client.post(
-                    agent.execute_url,
-                    json=message.model_dump(),
-                )
+            result = await agent_instance.process({
+                "action": action,
+                "parameters": parameters,
+                "step": {"action": action, "parameters": parameters},
+            })
             elapsed = round((time.perf_counter() - start) * 1000, 2)
 
-            if resp.status_code == 200:
-                result = AgentResultPayload.model_validate(resp.json())
-                return {
-                    "success": result.success,
-                    "data": result.data,
-                    "duration_ms": result.duration_ms or elapsed,
-                    "screenshot_path": result.screenshot_path,
-                    "error": result.error_message,
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Agent returned HTTP {resp.status_code}",
-                    "duration_ms": elapsed,
-                }
+            # Normalize result to orchestrator format
+            success = result.get("status", "") not in ("failure", "blocked", "execution_failed", "mismatch")
+            return {
+                "success": success,
+                "data": result,
+                "duration_ms": elapsed,
+                "error": result.get("error") if not success else None,
+            }
 
-        except httpx.TimeoutException:
+        except asyncio.TimeoutError:
             elapsed = round((time.perf_counter() - start) * 1000, 2)
+            settings = get_settings()
             return {
                 "success": False,
                 "error": f"Agent '{agent_name}' timed out after {settings.agent_timeout_seconds}s",
@@ -393,6 +503,7 @@ class WorkflowOrchestrator:
             }
         except Exception as exc:
             elapsed = round((time.perf_counter() - start) * 1000, 2)
+            logger.error("agent_dispatch_error", agent=agent_name, error=str(exc))
             return {
                 "success": False,
                 "error": str(exc),

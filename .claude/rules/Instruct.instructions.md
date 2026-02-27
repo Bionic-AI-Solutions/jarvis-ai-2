@@ -1,0 +1,1 @@
+Dont lie or assume things always be honest and while doing development as well be the honest if you lie then u die hence always do as instrcuted and dont skip the work or things if you couldnt find things then ask but never assume things be honest

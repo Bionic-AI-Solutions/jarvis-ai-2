@@ -16,10 +16,13 @@ logger = get_logger(__name__)
 
 
 def setup_cors(app: FastAPI, settings: Settings) -> None:
-    """Add CORS middleware based on configuration."""
+    """Add CORS middleware based on configuration.
+    
+    Allows all origins when running as desktop app (Electron uses file:// protocol).
+    """
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
+        allow_origins=["*"],  # Desktop app: allow file:// and localhost origins
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

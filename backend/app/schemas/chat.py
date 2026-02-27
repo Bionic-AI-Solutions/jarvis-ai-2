@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import OrmBase
 
@@ -45,6 +45,16 @@ class ChatMessageResponse(OrmBase):
     sequence: int
     token_count: int
     created_at: datetime
+    metadata: Optional[dict] = None
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def _coerce_metadata(cls, v: object) -> Optional[dict]:
+        """SQLAlchemy models have a class-level `metadata` (MetaData object).
+        When serializing from ORM, coerce non-dict values to None."""
+        if isinstance(v, dict):
+            return v
+        return None
 
 
 class ChatSessionResponse(OrmBase):
